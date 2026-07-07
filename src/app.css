@@ -1,0 +1,70 @@
+:root {
+  --bg: #1d222b;
+  --felt: #2c5138;
+  --felt-line: #24422f;
+  --panel: #262c37;
+  --panel-2: #303845;
+  --text: #e8e6e0;
+  --muted: #9aa3b2;
+  --accent: #d9a521;
+  --card-face: #f6f2e8;
+  --card-back: #7a2f35;
+  --card-back-2: #93424a;
+  font-family: 'Avenir Next', Avenir, 'Segoe UI', system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  overscroll-behavior: none;
+}
+
+#app {
+  height: 100%;
+}
+
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid #454f60;
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  background: #3a4453;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #241d06;
+  font-weight: 600;
+}
+button.primary:hover:not(:disabled) {
+  background: #e7b535;
+}
+
+input {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid #454f60;
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+input:focus {
+  outline: 1px solid var(--accent);
+}
