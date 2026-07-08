@@ -39,6 +39,43 @@ export interface CardFace {
 export type TokenEntity = Base<
   'token',
   { shape: 'disc' | 'square'; color: string; label: string; size: number },
+  { count: number } // a stack of identical pieces; 1 = a single token
+>;
+
+export type DiceEntity = Base<
+  'dice',
+  { sides: number; count: number },
+  { values: number[]; rolledBy: string | null; rolledAt: number }
+>;
+
+export type CounterEntity = Base<'counter', { label: string }, { value: number }>;
+
+/** One row per player; anyone can adjust any row (SPEC §3). */
+export type ScoreboardEntity = Base<
+  'scoreboard',
+  { label: string },
+  { values: Record<string, number> } // playerId -> score
+>;
+
+export type TimerEntity = Base<
+  'timer',
+  Record<string, never>,
+  {
+    mode: 'stopwatch' | 'countdown';
+    running: boolean;
+    /** epoch ms when last started; meaningful while running */
+    startedAt: number;
+    /** accumulated ms while paused */
+    elapsedMs: number;
+    /** countdown length */
+    durationMs: number;
+  }
+>;
+
+/** A labeled region. autoFaceDown flips cards face down as they enter. */
+export type ZoneEntity = Base<
+  'zone',
+  { label: string; w: number; h: number; color: string; autoFaceDown: boolean },
   Record<string, never>
 >;
 
@@ -68,7 +105,12 @@ export type Entity =
   | NoteEntity
   | CardEntity
   | DeckEntity
-  | HandEntity;
+  | HandEntity
+  | DiceEntity
+  | CounterEntity
+  | ScoreboardEntity
+  | TimerEntity
+  | ZoneEntity;
 
 export type EntityKind = Entity['kind'];
 

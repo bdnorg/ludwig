@@ -4,17 +4,11 @@
   import { inviteLink } from '../roomcode';
 
   let {
-    onSpawnDeck,
-    onSpawnPile,
-    onSpawnToken,
-    onSpawnNote,
+    onAddMenu,
     onImport,
     onExport,
   }: {
-    onSpawnDeck: () => void;
-    onSpawnPile: () => void;
-    onSpawnToken: () => void;
-    onSpawnNote: () => void;
+    onAddMenu: (e: MouseEvent) => void;
     onImport: (file: File) => void;
     onExport: () => void;
   } = $props();
@@ -41,10 +35,7 @@
   <button class="tinybtn" onclick={copyInvite}>{copied ? 'copied!' : 'copy invite'}</button>
 
   <span class="sep"></span>
-  <button onclick={onSpawnDeck}>+ 52-card deck</button>
-  <button onclick={onSpawnPile}>+ discard pile</button>
-  <button onclick={onSpawnToken}>+ token</button>
-  <button onclick={onSpawnNote}>+ note</button>
+  <button class="primary" onclick={onAddMenu}>+ add to table</button>
 
   <span class="spacer"></span>
   <button class="tinybtn" onclick={onExport}>export</button>

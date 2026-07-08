@@ -3,10 +3,20 @@
 // choice locally and broadcasts only the resulting mutations, applied
 // atomically everywhere (SPEC §5).
 
-import type { CardEntity, DeckEntity, Entity, HandEntity, Pos, Version } from './types';
+import type {
+  CardEntity,
+  DeckEntity,
+  DiceEntity,
+  Entity,
+  HandEntity,
+  Pos,
+  TokenEntity,
+  Version,
+} from './types';
 import type { Mutation, TableState } from './reducers';
 import { containerCards } from './containers';
-import { shuffled } from './rng';
+import { newId } from './types';
+import { randInt, shuffled } from './rng';
 
 export interface OpCtx {
   state: TableState;
@@ -160,6 +170,44 @@ export function gatherTableCards(ctx: OpCtx, deck: DeckEntity): Mutation[] {
     muts.push(put(ctx, c));
   }
   return [...muts, put(ctx, d)];
+}
+
+/** Roll every die: the actor resolves randomness locally (SPEC §5). */
+export function rollDice(ctx: OpCtx, dice: DiceEntity, rolledBy: string): Mutation[] {
+  const d = ctx.clone(dice);
+  d.state.values = Array.from({ length: d.config.count }, () => randInt(d.config.sides) + 1);
+  d.state.rolledBy = rolledBy;
+  d.state.rolledAt = Date.now();
+  return [put(ctx, d)];
+}
+
+/** Merge a dragged stack into a matching one (same label/color/size). */
+export function mergeTokens(ctx: OpCtx, src: TokenEntity, dst: TokenEntity): Mutation[] {
+  const d = ctx.clone(dst);
+  d.state.count = (d.state.count || 1) + (src.state.count || 1);
+  return [{ t: 'del', id: src.id, version: ctx.next() }, put(ctx, d)];
+}
+
+export function tokensMatch(a: TokenEntity, b: TokenEntity): boolean {
+  return (
+    a.config.label === b.config.label &&
+    a.config.color === b.config.color &&
+    a.config.shape === b.config.shape &&
+    a.config.size === b.config.size
+  );
+}
+
+/** Split n pieces off a stack into a new stack at pos. */
+export function splitToken(ctx: OpCtx, src: TokenEntity, n: number, pos: Pos): Mutation[] {
+  const have = src.state.count || 1;
+  if (n <= 0 || n >= have) return [];
+  const rest = ctx.clone(src);
+  rest.state.count = have - n;
+  const taken = ctx.clone(src);
+  taken.id = newId('tok');
+  taken.pos = pos;
+  taken.state.count = n;
+  return [put(ctx, rest), put(ctx, taken)];
 }
 
 /** Delete an entity; deleting a container deletes the cards inside it. */

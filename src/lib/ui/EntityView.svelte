@@ -4,17 +4,31 @@
   import { containerCards, topCard } from '../model/containers';
   import CardFaceView from './CardFaceView.svelte';
   import NoteView from './NoteView.svelte';
+  import DiceView from './DiceView.svelte';
+  import CounterView from './CounterView.svelte';
+  import ScoreboardView from './ScoreboardView.svelte';
+  import TimerView from './TimerView.svelte';
+  import ZoneView from './ZoneView.svelte';
 
   type Handler = (e: PointerEvent | MouseEvent, ent: Entity) => void;
   let {
     entity,
+    scale = 1,
     onGrab,
     onDouble,
     onMenu,
-  }: { entity: Entity; onGrab: Handler; onDouble: Handler; onMenu: Handler } = $props();
+  }: { entity: Entity; scale?: number; onGrab: Handler; onDouble: Handler; onMenu: Handler } =
+    $props();
 
   const pos = $derived(table.dragPos[entity.id] ?? entity.pos);
-  const z = $derived(table.dragPos[entity.id] ? 100000 : entity.pos.z);
+  // zones live on a negative band so they can never rise above pieces
+  const z = $derived(
+    entity.kind === 'zone'
+      ? entity.pos.z - 1000000
+      : table.dragPos[entity.id]
+        ? 100000
+        : entity.pos.z,
+  );
 
   const deckCards = $derived(entity.kind === 'deck' ? containerCards(table.state, entity) : []);
   const deckTop = $derived(entity.kind === 'deck' ? topCard(table.state, entity) : undefined);
@@ -33,7 +47,11 @@
   style:top="{pos.y}px"
   style:z-index={z}
   data-entity-id={entity.id}
-  data-drop={entity.kind === 'deck' ? `deck:${entity.id}` : undefined}
+  data-drop={entity.kind === 'deck'
+    ? `deck:${entity.id}`
+    : entity.kind === 'token'
+      ? `token:${entity.id}`
+      : undefined}
   onpointerdown={(e) => onGrab(e, entity)}
   ondblclick={(e) => onDouble(e, entity)}
   oncontextmenu={(e) => onMenu(e, entity)}
@@ -47,7 +65,20 @@
       style:background={entity.config.color}
     >
       {entity.config.label}
+      {#if (entity.state.count ?? 1) > 1}
+        <span class="stack">×{entity.state.count}</span>
+      {/if}
     </div>
+  {:else if entity.kind === 'dice'}
+    <DiceView dice={entity} />
+  {:else if entity.kind === 'counter'}
+    <CounterView counter={entity} />
+  {:else if entity.kind === 'scoreboard'}
+    <ScoreboardView board={entity} />
+  {:else if entity.kind === 'timer'}
+    <TimerView timer={entity} />
+  {:else if entity.kind === 'zone'}
+    <ZoneView zone={entity} {scale} />
   {:else if entity.kind === 'note'}
     <NoteView note={entity} />
   {:else if entity.kind === 'card'}
@@ -102,6 +133,20 @@
   }
   .token.square {
     border-radius: 4px;
+  }
+  .stack {
+    position: absolute;
+    top: -9px;
+    right: -12px;
+    background: var(--panel);
+    border: 1px solid #454f60;
+    border-radius: 10px;
+    padding: 0px 5px;
+    font-size: 0.6rem;
+    color: var(--text);
+  }
+  .token {
+    position: relative;
   }
   .deck {
     position: relative;

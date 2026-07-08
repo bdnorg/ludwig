@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { CardEntity, DeckEntity, Entity, Pos } from '../model/types';
+  import type { CardEntity, DeckEntity, Entity, Pos, ZoneEntity } from '../model/types';
   import { newId } from '../model/types';
   import * as ops from '../model/ops';
   import { standardDeck, CARD_W, CARD_H } from '../model/cards52';
@@ -71,12 +71,33 @@
     window.removeEventListener('pointerup', onPanUp);
   }
 
-  // ---- entities on the table ----
-  const tableEntities = $derived(
-    Object.values(table.state.entities)
-      .filter((e) => e.parent === null && e.kind !== 'hand')
-      .sort((a, b) => a.pos.z - b.pos.z),
+  // ---- entities on the table (zones render in a layer below everything) ----
+  const onTable = $derived(
+    Object.values(table.state.entities).filter((e) => e.parent === null && e.kind !== 'hand'),
   );
+  const zoneEntities = $derived(
+    onTable.filter((e) => e.kind === 'zone').sort((a, b) => a.pos.z - b.pos.z),
+  );
+  const tableEntities = $derived(
+    onTable.filter((e) => e.kind !== 'zone').sort((a, b) => a.pos.z - b.pos.z),
+  );
+
+  /** topmost auto-face-down zone containing the point, if any */
+  function faceDownZoneAt(x: number, y: number): ZoneEntity | null {
+    let hit: ZoneEntity | null = null;
+    for (const e of zoneEntities) {
+      if (
+        e.kind === 'zone' &&
+        e.config.autoFaceDown &&
+        x >= e.pos.x &&
+        x <= e.pos.x + e.config.w &&
+        y >= e.pos.y &&
+        y <= e.pos.y + e.config.h
+      )
+        hit = e;
+    }
+    return hit;
+  }
 
   // ---- drag: entities on the table ----
   let drag: { id: string; dx: number; dy: number; moved: boolean } | null = null;
@@ -111,7 +132,9 @@
       return;
     }
     const p = screenToTable(e.clientX, e.clientY);
-    const pos: Pos = { x: p.x - d.dx, y: p.y - d.dy, z: table.maxZ() + 1, rot: ent.pos.rot };
+    // zones keep their z so they never rise above pieces
+    const z = ent.kind === 'zone' ? ent.pos.z : table.maxZ() + 1;
+    const pos: Pos = { x: p.x - d.dx, y: p.y - d.dy, z, rot: ent.pos.rot };
     if (ent.kind === 'card') {
       const target = dropTargetAt(e.clientX, e.clientY, ent.id);
       if (target?.type === 'deck') {
@@ -124,6 +147,27 @@
         table.commit(ops.takeToHand(table, ent, table.myHand()));
         return;
       }
+      // entering an auto-face-down zone flips the card down (moving within it doesn't)
+      const cx = pos.x + ent.config.w / 2;
+      const cy = pos.y + ent.config.h / 2;
+      const zone = faceDownZoneAt(cx, cy);
+      const wasInside =
+        zone && faceDownZoneAt(ent.pos.x + ent.config.w / 2, ent.pos.y + ent.config.h / 2)?.id === zone.id;
+      table.update(ent, (draft) => {
+        draft.pos = pos;
+        if (zone && !wasInside) draft.state.faceUp = false;
+      });
+      return;
+    }
+    if (ent.kind === 'token') {
+      const target = dropTargetAt(e.clientX, e.clientY, ent.id);
+      if (target?.type === 'token') {
+        const dst = table.get(target.id);
+        if (dst?.kind === 'token' && ops.tokensMatch(ent, dst)) {
+          table.commit(ops.mergeTokens(table, ent, dst));
+          return;
+        }
+      }
     }
     table.update(ent, (draft) => {
       draft.pos = pos;
@@ -134,7 +178,7 @@
     cx: number,
     cy: number,
     excludeId: string,
-  ): { type: 'deck'; id: string } | { type: 'tray' } | null {
+  ): { type: 'deck' | 'token'; id: string } | { type: 'tray' } | null {
     for (const el of document.elementsFromPoint(cx, cy)) {
       const html = el as HTMLElement;
       if (html.dataset?.entityId === excludeId) continue;
@@ -142,7 +186,7 @@
       if (!d) continue;
       if (d === 'tray') return { type: 'tray' };
       const [t, id] = d.split(':');
-      if (t === 'deck' && id !== excludeId) return { type: 'deck', id };
+      if ((t === 'deck' || t === 'token') && id !== excludeId) return { type: t, id };
     }
     return null;
   }
@@ -187,8 +231,9 @@
       z: table.maxZ() + 1,
       rot: 0,
     };
-    // shift-drop plays face down (e.g. passing cards in hearts)
-    table.commit(ops.playToTable(table, card, pos, !e.shiftKey));
+    // shift-drop or an auto-face-down zone plays face down (e.g. passing in hearts)
+    const faceUp = !e.shiftKey && !faceDownZoneAt(p.x, p.y);
+    table.commit(ops.playToTable(table, card, pos, faceUp));
   }
 
   const handDragCard = $derived(
@@ -200,6 +245,7 @@
     e.stopPropagation();
     if (ent.kind === 'card') table.commit(ops.flipCard(table, ent));
     else if (ent.kind === 'deck') table.commit(ops.drawToHand(table, ent, table.myHand()));
+    else if (ent.kind === 'dice') table.commit(ops.rollDice(table, ent, table.me.id));
   }
 
   // ---- context menu ----
@@ -248,6 +294,119 @@
         { label: 'Gather cards from table', run: () => table.commit(ops.gatherTableCards(table, ent)) },
       );
     }
+    if (ent.kind === 'dice') {
+      items.push(
+        { label: 'Roll', run: () => table.commit(ops.rollDice(table, ent, table.me.id)) },
+        {
+          label: 'Change dice…',
+          run: () => {
+            const spec = prompt('Dice (e.g. 2d6, 1d20):', `${ent.config.count}d${ent.config.sides}`);
+            const m = spec?.match(/^\s*(\d+)\s*d\s*(\d+)\s*$/i);
+            if (!m) return;
+            const [count, sides] = [Math.min(12, +m[1]), Math.min(1000, +m[2])];
+            if (count < 1 || sides < 2) return;
+            table.update(ent, (d) => {
+              d.config.count = count;
+              d.config.sides = sides;
+              d.state.values = Array.from({ length: count }, () => 1);
+            });
+          },
+        },
+      );
+    }
+    if (ent.kind === 'token') {
+      const count = ent.state.count ?? 1;
+      if (count > 1) {
+        const splitOff = (n: number) =>
+          table.commit(
+            ops.splitToken(table, ent, n, {
+              x: ent.pos.x + ent.config.size + 12,
+              y: ent.pos.y,
+              z: table.maxZ() + 1,
+              rot: 0,
+            }),
+          );
+        items.push(
+          { label: 'Take 1 off the stack', run: () => splitOff(1) },
+          {
+            label: 'Split stack…',
+            run: () => {
+              const n = Number(prompt(`Take how many? (stack of ${count})`, '1'));
+              if (Number.isInteger(n)) splitOff(n);
+            },
+          },
+        );
+      }
+      items.push({
+        label: 'Set label…',
+        run: () => {
+          const label = prompt('Token label:', ent.config.label);
+          if (label !== null)
+            table.update(ent, (t) => {
+              t.config.label = label;
+            });
+        },
+      });
+    }
+    if (ent.kind === 'counter' || ent.kind === 'scoreboard' || ent.kind === 'zone') {
+      items.push({
+        label: 'Rename…',
+        run: () => {
+          const label = prompt('Label:', ent.config.label);
+          if (label)
+            table.update(ent, (z) => {
+              z.config.label = label;
+            });
+        },
+      });
+    }
+    if (ent.kind === 'counter') {
+      items.push({
+        label: 'Set value…',
+        run: () => {
+          const v = Number(prompt('Value:', String(ent.state.value)));
+          if (Number.isFinite(v))
+            table.update(ent, (c) => {
+              c.state.value = v;
+            });
+        },
+      });
+    }
+    if (ent.kind === 'zone') {
+      items.push({
+        label: ent.config.autoFaceDown ? 'Cards enter face up' : 'Cards enter face down',
+        run: () =>
+          table.update(ent, (z) => {
+            z.config.autoFaceDown = !z.config.autoFaceDown;
+          }),
+      });
+    }
+    if (ent.kind === 'timer') {
+      items.push(
+        {
+          label: 'Countdown…',
+          run: () => {
+            const min = Number(prompt('Countdown minutes:', '5'));
+            if (!(min > 0)) return;
+            table.update(ent, (t) => {
+              t.state.mode = 'countdown';
+              t.state.durationMs = Math.round(min * 60000);
+              t.state.running = false;
+              t.state.elapsedMs = 0;
+            });
+          },
+        },
+        {
+          label: 'Stopwatch',
+          run: () =>
+            table.update(ent, (t) => {
+              t.state.mode = 'stopwatch';
+              t.state.running = false;
+              t.state.elapsedMs = 0;
+            }),
+        },
+      );
+    }
     items.push(
       {
         label: ent.locked ? 'Unlock' : 'Lock in place',
@@ -270,51 +429,107 @@
     return { x: p.x + j(), y: p.y + j(), z: table.maxZ() + 1, rot: 0 };
   }
 
-  function spawnDeck() {
-    table.commit(standardDeck(table, centerPos()));
-  }
-  function spawnPile() {
+  function spawn(kind: Entity['kind'], config: unknown, state: unknown, prefix: string = kind) {
     table.create({
-      id: newId('deck'),
-      kind: 'deck',
+      id: newId(prefix),
+      kind,
       version: table.next(),
       parent: null,
       pos: centerPos(),
       locked: false,
-      config: { label: 'Discard', facePolicy: 'up', w: CARD_W, h: CARD_H },
-      state: { cards: [] },
-    });
+      config,
+      state,
+    } as Entity);
   }
+
   const TOKEN_COLORS = ['#e4573d', '#3d9be4', '#48b265', '#d9a521', '#9b59c9', '#f0f0f0', '#22242a'];
   let tokenColorIdx = 0;
-  function spawnToken() {
-    table.create({
-      id: newId('tok'),
-      kind: 'token',
-      version: table.next(),
-      parent: null,
-      pos: centerPos(),
-      locked: false,
-      config: {
-        shape: 'disc',
-        color: TOKEN_COLORS[tokenColorIdx++ % TOKEN_COLORS.length],
-        label: '',
-        size: 28,
+  const CHIPS = [
+    { label: '$1', color: '#b8b2a0' },
+    { label: '$5', color: '#c0392b' },
+    { label: '$25', color: '#27ae60' },
+    { label: '$100', color: '#22242a' },
+  ];
+
+  function spawnMenuItems(): MenuItem[] {
+    return [
+      { label: '🂠 52-card deck', run: () => table.commit(standardDeck(table, centerPos())) },
+      {
+        label: '🂠 Discard pile',
+        run: () =>
+          spawn('deck', { label: 'Discard', facePolicy: 'up', w: CARD_W, h: CARD_H }, { cards: [] }),
       },
-      state: {},
-    });
+      ...CHIPS.map((chip) => ({
+        label: `⛁ Chips ${chip.label} (×20)`,
+        run: () =>
+          spawn(
+            'token',
+            { shape: 'disc', color: chip.color, label: chip.label, size: 34 },
+            { count: 20 },
+            'tok',
+          ),
+      })),
+      {
+        label: '● Token',
+        run: () =>
+          spawn(
+            'token',
+            {
+              shape: 'disc',
+              color: TOKEN_COLORS[tokenColorIdx++ % TOKEN_COLORS.length],
+              label: '',
+              size: 28,
+            },
+            { count: 1 },
+            'tok',
+          ),
+      },
+      {
+        label: '⚄ Two dice (d6)',
+        run: () =>
+          spawn('dice', { sides: 6, count: 2 }, { values: [1, 1], rolledBy: null, rolledAt: 0 }),
+      },
+      {
+        label: '⚄ Die (d6)',
+        run: () => spawn('dice', { sides: 6, count: 1 }, { values: [1], rolledBy: null, rolledAt: 0 }),
+      },
+      {
+        label: '# Counter',
+        run: () => spawn('counter', { label: 'Counter' }, { value: 0 }),
+      },
+      {
+        label: '≡ Scoreboard',
+        run: () => spawn('scoreboard', { label: 'Score' }, { values: {} }),
+      },
+      {
+        label: '⏱ Timer',
+        run: () =>
+          spawn(
+            'timer',
+            {},
+            { mode: 'stopwatch', running: false, startedAt: 0, elapsedMs: 0, durationMs: 0 },
+          ),
+      },
+      {
+        label: '▭ Zone',
+        run: () =>
+          spawn('zone', { label: 'Zone', w: 300, h: 220, color: '#3d9be4', autoFaceDown: false }, {}),
+      },
+      {
+        label: '▭ Face-down zone',
+        run: () =>
+          spawn(
+            'zone',
+            { label: 'Play area', w: 300, h: 220, color: '#d9a521', autoFaceDown: true },
+            {},
+          ),
+      },
+      { label: '🗈 Note', run: () => spawn('note', { color: '#e7d980' }, { text: '' }) },
+    ];
   }
-  function spawnNote() {
-    table.create({
-      id: newId('note'),
-      kind: 'note',
-      version: table.next(),
-      parent: null,
-      pos: centerPos(),
-      locked: false,
-      config: { color: '#e7d980' },
-      state: { text: '' },
-    });
+
+  function openSpawnMenu(e: MouseEvent) {
+    menu = { x: e.clientX, y: e.clientY, items: spawnMenuItems() };
   }
 
   // ---- import / export ----
@@ -349,14 +564,7 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="table-screen">
-  <Toolbar
-    onSpawnDeck={spawnDeck}
-    onSpawnPile={spawnPile}
-    onSpawnToken={spawnToken}
-    onSpawnNote={spawnNote}
-    onExport={doExport}
-    onImport={doImport}
-  />
+  <Toolbar onAddMenu={openSpawnMenu} onExport={doExport} onImport={doImport} />
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -372,8 +580,11 @@
       class="surface"
       style:transform="translate({view.x}px, {view.y}px) scale({view.scale})"
     >
+      {#each zoneEntities as entity (entity.id)}
+        <EntityView {entity} scale={view.scale} {onGrab} {onDouble} {onMenu} />
+      {/each}
       {#each tableEntities as entity (entity.id)}
-        <EntityView {entity} {onGrab} {onDouble} {onMenu} />
+        <EntityView {entity} scale={view.scale} {onGrab} {onDouble} {onMenu} />
       {/each}
       <Cursors />
     </div>

@@ -35,6 +35,6 @@ export function token(id: string, actor: string, clock: number, x = 0): TokenEnt
     pos: { x, y: 0, z: 0, rot: 0 },
     locked: false,
     config: { shape: 'disc', color: '#fff', label: '', size: 20 },
-    state: {},
+    state: { count: 1 },
   };
 }
