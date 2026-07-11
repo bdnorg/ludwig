@@ -1,8 +1,9 @@
 // Built-in template: a standard 52-card deck (SPEC §6).
 
-import type { CardEntity, DeckEntity, Pos } from './types';
+import type { CardEntity, Pos } from './types';
 import type { Mutation } from './reducers';
 import type { OpCtx } from './ops';
+import { makeMat, matPresets } from './mats';
 import { newId } from './types';
 import { shuffled } from './rng';
 
@@ -18,7 +19,7 @@ export const CARD_W = 72;
 export const CARD_H = 100;
 
 export function standardDeck(ctx: OpCtx, pos: Pos, jokers = false): Mutation[] {
-  const deckId = newId('deck');
+  const deckId = newId('mat');
   const muts: Mutation[] = [];
   const cardIds: string[] = [];
 
@@ -49,16 +50,11 @@ export function standardDeck(ctx: OpCtx, pos: Pos, jokers = false): Mutation[] {
     addCard('JOKER', '★', '#c0303a');
   }
 
-  const deck: DeckEntity = {
+  const deck = makeMat(ctx.next(), pos, {
+    ...matPresets.deck('Deck'),
     id: deckId,
-    kind: 'deck',
-    version: ctx.next(),
-    parent: null,
-    pos,
-    locked: false,
-    config: { label: 'Deck', facePolicy: 'down', w: CARD_W, h: CARD_H },
-    state: { cards: shuffled(cardIds) },
-  };
+    order: shuffled(cardIds),
+  });
   muts.push({ t: 'put', entity: deck });
   return muts;
 }

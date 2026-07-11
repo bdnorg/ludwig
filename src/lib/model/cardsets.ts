@@ -2,9 +2,10 @@
 // Used by the "Import card set…" feature and by built-in sets (Dominion).
 // Format documented in TEMPLATES.md; an example lives in examples/.
 
-import type { CardEntity, CardFace, DeckEntity, Pos } from './types';
+import type { CardEntity, CardFace, Pos } from './types';
 import type { Mutation } from './reducers';
 import type { OpCtx } from './ops';
+import { makeMat, matPresets } from './mats';
 import { newId } from './types';
 import { shuffled } from './rng';
 import { CARD_W, CARD_H } from './cards52';
@@ -41,7 +42,7 @@ export function validateCardSet(raw: unknown): CardSetSpec {
 }
 
 export function buildCardSet(ctx: OpCtx, spec: CardSetSpec, pos: Pos): Mutation[] {
-  const deckId = newId('deck');
+  const deckId = newId('mat');
   const muts: Mutation[] = [];
   const ids: string[] = [];
   for (const c of spec.cards) {
@@ -67,16 +68,13 @@ export function buildCardSet(ctx: OpCtx, spec: CardSetSpec, pos: Pos): Mutation[
       muts.push({ t: 'put', entity: card });
     }
   }
-  const deck: DeckEntity = {
+  const preset =
+    (spec.facePolicy ?? 'down') === 'up' ? matPresets.pile(spec.name) : matPresets.deck(spec.name);
+  const deck = makeMat(ctx.next(), pos, {
+    ...preset,
     id: deckId,
-    kind: 'deck',
-    version: ctx.next(),
-    parent: null,
-    pos,
-    locked: false,
-    config: { label: spec.name, facePolicy: spec.facePolicy ?? 'down', w: CARD_W, h: CARD_H },
-    state: { cards: spec.shuffle === false ? ids : shuffled(ids) },
-  };
+    order: spec.shuffle === false ? ids : shuffled(ids),
+  });
   muts.push({ t: 'put', entity: deck });
   return muts;
 }

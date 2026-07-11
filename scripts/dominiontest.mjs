@@ -22,7 +22,7 @@ const room = await page.evaluate(() => location.hash.replace('#/t/', ''));
 const state = () => page.evaluate((r) => JSON.parse(localStorage.getItem(`ludwig:table:${r}`)), room);
 
 let s = await state();
-const decks = Object.values(s.entities).filter((e) => e.kind === 'deck');
+const decks = Object.values(s.entities).filter((e) => e.kind === 'mat' && e.config.placement.type === 'stack');
 ok(decks.length === 22, `dominion table has 22 piles (got ${decks.length})`);
 const cards = Object.values(s.entities).filter((e) => e.kind === 'card');
 ok(cards.length === 308, `308 cards in play (got ${cards.length})`);
@@ -42,12 +42,12 @@ await page.mouse.up();
 await settle();
 s = await state();
 const bought = Object.values(s.entities).find((e) => e.kind === 'card' && e.parent === null);
-const copperAfter = Object.values(s.entities).find((e) => e.kind === 'deck' && e.config.label === 'Copper');
+const copperAfter = Object.values(s.entities).find((e) => e.kind === 'mat' && e.config.label === 'Copper');
 ok(
   bought?.config.front.title === 'Copper' && bought?.state.faceUp === true,
   'dragged top Copper off the supply, face up',
 );
-ok(copperAfter.state.cards.length === 31, `Copper pile down to 31 (got ${copperAfter.state.cards.length})`);
+ok(copperAfter.state.order.length === 31, `Copper pile down to 31 (got ${copperAfter.state.order.length})`);
 
 // starter deck: shuffle via context menu, then double-click 5 to hand
 const starter = decks.find((d) => d.config.label === 'Starter deck 1');
@@ -60,7 +60,7 @@ for (let i = 0; i < 5; i++) {
 }
 await settle();
 s = await state();
-const hand = Object.values(s.entities).find((e) => e.kind === 'hand');
+const hand = Object.values(s.entities).find((e) => e.kind === 'mat' && e.config.docked && e.config.ownerId);
 const inHand = Object.values(s.entities).filter((e) => e.kind === 'card' && e.parent === hand.id);
 ok(inHand.length === 5, `drew opening hand of 5 (got ${inHand.length})`);
 const titles = inHand.map((c) => c.config.front.title);

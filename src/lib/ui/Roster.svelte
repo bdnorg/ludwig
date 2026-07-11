@@ -1,18 +1,17 @@
 <script lang="ts">
   import { table } from '../state/store.svelte';
-  import { handOf } from '../model/containers';
-  import { containerCards } from '../model/containers';
+  import { canSeeCount, canSeeFaces, handOf, matItems } from '../model/mats';
 
   const connectedIds = $derived(
     [...new Set([table.me.id, ...Object.values(table.peers)])].sort(),
   );
 
-  function handCount(pid: string): number {
+  function handInfo(pid: string): string {
     const h = handOf(table.state, pid);
-    return h ? containerCards(table.state, h).length : 0;
-  }
-  function revealed(pid: string): boolean {
-    return handOf(table.state, pid)?.state.revealedTo === 'all';
+    if (!h) return '';
+    const revealed = canSeeFaces(h, table.me.id) && pid !== table.me.id;
+    if (!canSeeCount(h, table.me.id)) return `🂠 ?${revealed ? ' 👁' : ''}`;
+    return `🂠 ${matItems(table.state, h).length}${revealed ? ' 👁' : ''}`;
   }
 </script>
 
@@ -21,7 +20,7 @@
     <div class="player">
       <span class="dot" style:background={table.players[pid]?.color ?? '#888'}></span>
       <span class="name">{table.playerName(pid)}{pid === table.me.id ? ' (you)' : ''}</span>
-      <span class="cards">🂠 {handCount(pid)}{revealed(pid) ? ' 👁' : ''}</span>
+      <span class="cards">{handInfo(pid)}</span>
     </div>
   {/each}
 </div>

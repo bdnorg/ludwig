@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { DeckEntity } from './types';
-import { emptyTable, applyMutations, invertMutations, type Mutation } from './reducers';
-import { containerCards } from './containers';
+import type { MatEntity } from './types';
+import { emptyTable, applyMutations, invertMutations, mergeSnapshot, type Mutation } from './reducers';
+import { matCards } from './mats';
 import { buildCardSet, validateCardSet } from './cardsets';
 import { dominionTable } from './dominion';
 import { TestPeer, token } from './testutil';
@@ -16,8 +16,8 @@ describe('card set builder', () => {
         { x: 0, y: 0, z: 0, rot: 0 },
       ),
     );
-    const deck = Object.values(peer.state.entities).find((e) => e.kind === 'deck') as DeckEntity;
-    const cards = containerCards(peer.state, deck);
+    const deck = Object.values(peer.state.entities).find((e) => e.kind === 'mat') as MatEntity;
+    const cards = matCards(peer.state, deck);
     expect(cards).toHaveLength(4);
     expect(cards.filter((c) => c.config.front.title === 'A')).toHaveLength(3);
     expect(cards.find((c) => c.config.front.title === 'B')?.config.front.body).toBe('text');
@@ -38,10 +38,10 @@ describe('dominion template', () => {
     const peer = new TestPeer('a');
     peer.apply(dominionTable(peer, { x: 0, y: 0, z: 1, rot: 0 }));
     const decks = Object.values(peer.state.entities).filter(
-      (e): e is DeckEntity => e.kind === 'deck',
+      (e): e is MatEntity => e.kind === 'mat' && e.config.placement.type === 'stack',
     );
     const byLabel = Object.fromEntries(
-      decks.map((d) => [d.config.label, containerCards(peer.state, d).length]),
+      decks.map((d) => [d.config.label, matCards(peer.state, d).length]),
     );
     // supply: 7 base piles + trash
     expect(byLabel['Copper']).toBe(32); // 60 minus 4×7 starter coppers
@@ -59,14 +59,33 @@ describe('dominion template', () => {
     const starters = decks.filter((d) => d.config.label.startsWith('Starter'));
     expect(starters).toHaveLength(4);
     for (const s of starters) {
-      expect(containerCards(peer.state, s)).toHaveLength(10);
-      expect(s.config.facePolicy).toBe('down');
+      expect(matCards(peer.state, s)).toHaveLength(10);
+      expect(s.config.faceDefault).toBe('down');
     }
     // kingdom/supply piles are face up
-    expect(decks.find((d) => d.config.label === 'Village')?.config.facePolicy).toBe('up');
-    // setup note and play-area zone exist
+    expect(decks.find((d) => d.config.label === 'Village')?.config.faceDefault).toBe('up');
+    // setup note and play-area mat exist
     expect(Object.values(peer.state.entities).some((e) => e.kind === 'note')).toBe(true);
-    expect(Object.values(peer.state.entities).some((e) => e.kind === 'zone')).toBe(true);
+    expect(
+      Object.values(peer.state.entities).some(
+        (e) => e.kind === 'mat' && e.config.placement.type === 'free',
+      ),
+    ).toBe(true);
+  });
+});
+
+describe('message log', () => {
+  it('merges as a union and converges regardless of order', () => {
+    const a = emptyTable();
+    const b = emptyTable();
+    applyMutations(a, [{ t: 'log', id: 'l1', entry: { at: 1, actor: 'a', text: 'one' } }]);
+    applyMutations(b, [{ t: 'log', id: 'l2', entry: { at: 2, actor: 'b', text: 'two' } }]);
+    // duplicate delivery is a no-op
+    expect(applyMutations(a, [{ t: 'log', id: 'l1', entry: { at: 1, actor: 'a', text: 'one' } }])).toBe(false);
+    mergeSnapshot(a, b);
+    mergeSnapshot(b, a);
+    expect(a.log).toEqual(b.log);
+    expect(Object.keys(a.log).sort()).toEqual(['l1', 'l2']);
   });
 });
 

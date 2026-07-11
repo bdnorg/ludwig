@@ -1,26 +1,26 @@
 <script lang="ts">
-  import type { DeckEntity } from '../model/types';
+  import type { MatEntity } from '../model/types';
   import { table } from '../state/store.svelte';
-  import { containerCards } from '../model/containers';
-  import { takeToHand, shuffleDeck } from '../model/ops';
+  import { matCards } from '../model/mats';
+  import { moveToMat, shuffleMat } from '../model/ops';
   import CardFaceView from './CardFaceView.svelte';
 
-  let { deck, onClose }: { deck: DeckEntity; onClose: () => void } = $props();
+  let { mat, onClose }: { mat: MatEntity; onClose: () => void } = $props();
 
-  const cards = $derived(containerCards(table.state, deck));
+  const cards = $derived(matCards(table.state, mat));
 
   function take(cardId: string) {
     const card = table.get(cardId);
-    if (card?.kind === 'card') table.commit(takeToHand(table, card, table.myHand()));
+    if (card?.kind === 'card') table.commit(moveToMat(table, card, table.myHand()));
   }
 </script>
 
 <div class="backdrop">
   <div class="modal">
     <header>
-      <strong>{deck.config.label}</strong>
-      <span class="note">searching a deck is a public act — shuffle when you're done</span>
-      <button onclick={() => table.commit(shuffleDeck(table, deck))}>Shuffle</button>
+      <strong>{mat.config.label}</strong>
+      <span class="note">searching a mat is a public act — shuffle when you're done</span>
+      <button onclick={() => table.commit(shuffleMat(table, mat))}>Shuffle</button>
       <button onclick={onClose}>Close</button>
     </header>
     <div class="grid">
@@ -29,7 +29,7 @@
           <CardFaceView face={card.config.front} w={card.config.w} h={card.config.h} />
         </button>
       {:else}
-        <p class="note">deck is empty</p>
+        <p class="note">it's empty</p>
       {/each}
     </div>
   </div>

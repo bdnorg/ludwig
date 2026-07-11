@@ -47,12 +47,12 @@ console.log('PASS: peers connected, rosters show both players');
 // alice spawns a 52-card deck; bob should see it
 await alice.click('.toolbar button.primary');
 await alice.click('.menu button:has-text("52-card deck")');
-await bob.waitForSelector('[data-drop^="deck:"]', { timeout: 15000 });
+await bob.waitForSelector('[data-drop^="mat:"]', { timeout: 15000 });
 console.log('PASS: deck created by alice appeared for bob');
 
 // bob draws two cards by double-clicking the deck; check counts on both sides
-await bob.dblclick('[data-drop^="deck:"]');
-await bob.dblclick('[data-drop^="deck:"]');
+await bob.dblclick('[data-drop^="mat:"]');
+await bob.dblclick('[data-drop^="mat:"]');
 await alice.waitForFunction(
   () => document.querySelector('.count')?.textContent === '50',
   { timeout: 15000 },
@@ -66,8 +66,8 @@ console.log(`PASS: bob drew 2 (tray=${bobTray}); alice sees deck=50, roster: ${a
 // hidden info: alice must NOT see bob's card faces anywhere in her DOM/state
 const aliceHandCards = await alice.evaluate(() => {
   const s = JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('ludwig:table:test-p2p'))));
-  const hand = Object.values(s.entities).find((e) => e.kind === 'hand' && e.config.ownerId === 'p_bob');
-  return hand ? hand.state.cards.length : -1;
+  const hand = Object.values(s.entities).find((e) => e.kind === 'mat' && e.config.ownerId === 'p_bob');
+  return hand ? hand.state.order.length : -1;
 });
 console.log(`INFO: honor-system — alice's state does hold bob's ${aliceHandCards} card ids (expected; renderer hides faces)`);
 const aliceTray = await alice.evaluate(() => document.querySelectorAll('.tray .slot').length);
@@ -75,7 +75,7 @@ console.log(aliceTray === 0 ? 'PASS: alice tray shows none of bob\'s cards' : `F
 
 // late joiner: carol arrives and should receive the full table via snapshot
 const carol = await makePeer('carol');
-await carol.waitForSelector('[data-drop^="deck:"]', { timeout: 30000 });
+await carol.waitForSelector('[data-drop^="mat:"]', { timeout: 30000 });
 const carolDeck = await carol.evaluate(() => document.querySelector('.count')?.textContent);
 console.log(carolDeck === '50' ? 'PASS: late joiner carol got snapshot (deck=50)' : `FAIL: carol deck=${carolDeck}`);
 

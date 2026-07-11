@@ -1,4 +1,4 @@
-// Core entity model. See SPEC.md §2–3.
+// Core entity model. See SPEC.md §2–3 and Part II §10.
 // Every entity shares a common envelope; `config` is what the object IS,
 // `state` is what it is DOING. Both are plain JSON and travel in messages.
 
@@ -18,9 +18,10 @@ interface Base<K extends string, C, S> {
   id: string;
   kind: K;
   version: Version;
-  /** null = on the table; otherwise the id of a containing entity (deck, hand) */
+  /** null = on the table (the root mat); otherwise the id of a containing mat */
   parent: string | null;
-  /** table coordinates; meaningless while inside a container */
+  /** coordinates relative to the containing mat (table coords at root);
+   *  ignored inside stack/fan mats, where mat order rules */
   pos: Pos;
   locked: boolean;
   config: C;
@@ -40,10 +41,73 @@ export interface CardFace {
   image?: string;
 }
 
+// ---- Mats (SPEC §10) --------------------------------------------------
+
+/** Who may see something: everyone, the mat's owner, or an explicit list
+ *  ([] = nobody). */
+export type VisibilityRule = 'public' | 'owner' | string[];
+
+export interface MatVisibility {
+  faces: VisibilityRule; // fronts of contained cards
+  count: VisibilityRule; // how many items it holds (advanced)
+  existence: VisibilityRule; // whether the mat renders at all (advanced)
+}
+
+export interface SlotDef {
+  id: string;
+  x: number;
+  y: number;
+  /** restrict what may snap here (matches item config.tags); empty = anything */
+  accepts?: string[];
+}
+
+export interface MatPlacement {
+  type: 'free' | 'grid' | 'slots' | 'stack' | 'fan';
+  grid?: { size: number };
+  slots?: SlotDef[];
+}
+
+/** How a viewer renders a mat — local preference, never synced (SPEC §11). */
+export type ViewMode = 'auto' | 'stack' | 'fan' | 'collapsed';
+
+/** The one container: deck, discard, hand, zone, and board are all mats. */
+export type MatEntity = Base<
+  'mat',
+  {
+    label: string;
+    /** keyboard-target letter; null = auto-assigned deterministically */
+    letter: string | null;
+    ownerId: string | null;
+    placement: MatPlacement;
+    /** applied to cards when they ENTER the mat (never while moving within) */
+    faceDefault: 'up' | 'down' | 'keep';
+    visibility: MatVisibility;
+    image: string | null;
+    /** extent for free/grid/slots mats; null for stack/fan (auto-size) */
+    size: { w: number; h: number } | null;
+    /** docked mats (hands, the game mat) render in chrome, not on the table */
+    docked: boolean;
+  },
+  {
+    /** stack/fan order, index 0 = top; membership authority is child.parent */
+    order: string[];
+  }
+>;
+
+// ---- Items ------------------------------------------------------------
+
 export type TokenEntity = Base<
   'token',
   { shape: 'disc' | 'square'; color: string; label: string; size: number },
   { count: number } // a stack of identical pieces; 1 = a single token
+>;
+
+export type NoteEntity = Base<'note', { color: string }, { text: string }>;
+
+export type CardEntity = Base<
+  'card',
+  { front: CardFace; back: CardFace; w: number; h: number },
+  { faceUp: boolean }
 >;
 
 export type DiceEntity = Base<
@@ -76,45 +140,15 @@ export type TimerEntity = Base<
   }
 >;
 
-/** A labeled region. autoFaceDown flips cards face down as they enter. */
-export type ZoneEntity = Base<
-  'zone',
-  { label: string; w: number; h: number; color: string; autoFaceDown: boolean },
-  Record<string, never>
->;
-
-export type NoteEntity = Base<'note', { color: string }, { text: string }>;
-
-export type CardEntity = Base<
-  'card',
-  { front: CardFace; back: CardFace; w: number; h: number },
-  { faceUp: boolean }
->;
-
-/** A deck and a discard pile are the same kind with different facePolicy. */
-export type DeckEntity = Base<
-  'deck',
-  { label: string; facePolicy: 'down' | 'up'; w: number; h: number },
-  { cards: string[] } // index 0 = top; order authority (membership authority is card.parent)
->;
-
-export type HandEntity = Base<
-  'hand',
-  { ownerId: string }, // player id, stable across reconnects
-  { cards: string[]; revealedTo: string[] | 'all' }
->;
-
 export type Entity =
+  | MatEntity
   | TokenEntity
   | NoteEntity
   | CardEntity
-  | DeckEntity
-  | HandEntity
   | DiceEntity
   | CounterEntity
   | ScoreboardEntity
-  | TimerEntity
-  | ZoneEntity;
+  | TimerEntity;
 
 export type EntityKind = Entity['kind'];
 

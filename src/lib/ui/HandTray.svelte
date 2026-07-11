@@ -1,24 +1,28 @@
 <script lang="ts">
   import { table } from '../state/store.svelte';
-  import { containerCards } from '../model/containers';
+  import { describeRule, matCards } from '../model/mats';
   import CardFaceView from './CardFaceView.svelte';
 
   let { onCardGrab }: { onCardGrab: (e: PointerEvent, cardId: string) => void } = $props();
 
   const hand = $derived(table.myHand());
-  const cards = $derived(containerCards(table.state, hand));
-  const revealed = $derived(hand.state.revealedTo === 'all');
+  const cards = $derived(matCards(table.state, hand));
+  const revealed = $derived(hand.config.visibility.faces === 'public');
 
   function toggleReveal() {
+    const rule = revealed ? 'owner' : 'public';
     table.update(hand, (h) => {
-      h.state.revealedTo = h.state.revealedTo === 'all' ? [] : 'all';
+      h.config.visibility.faces = rule;
     });
+    table.logMsg(
+      `${table.playerName(table.me.id)} set “Hand” faces visible to ${describeRule(rule)}`,
+    );
   }
 </script>
 
-<div class="tray" data-drop="tray">
+<div class="tray" class:priv={!revealed} data-drop="tray">
   <div class="side">
-    <span class="title">your hand</span>
+    <span class="title">your hand {revealed ? '' : '👁'}</span>
     <button class="tiny" onclick={toggleReveal}>{revealed ? 'conceal' : 'reveal all'}</button>
     {#if revealed}<span class="warn">visible to everyone</span>{/if}
   </div>
@@ -29,7 +33,7 @@
         <CardFaceView face={card.config.front} w={card.config.w} h={card.config.h} />
       </div>
     {:else}
-      <span class="hint">drag cards here, or draw from a deck — drag out to play (⇧ plays face down)</span>
+      <span class="hint">drag cards here, or draw from a deck — drag out to play (⇧ flips)</span>
     {/each}
   </div>
 </div>
@@ -51,6 +55,11 @@
     gap: 14px;
     align-items: center;
     z-index: 200000;
+  }
+  /* privileged view: only I can see these faces (SPEC §11) */
+  .tray.priv {
+    border-color: color-mix(in srgb, var(--accent) 60%, #454f60);
+    border-style: dashed;
   }
   .side {
     display: flex;

@@ -1,20 +1,23 @@
 // Op builders: each computes the concrete mutations for a physical action
-// (shuffle, draw, deal, play…). The acting peer resolves all randomness and
+// (shuffle, draw, deal, move…). The acting peer resolves all randomness and
 // choice locally and broadcasts only the resulting mutations, applied
 // atomically everywhere (SPEC §5).
+//
+// The universal primitive is moveToMat: everything that changes what
+// contains an item goes through it, so entry rules (faceDefault, snapping)
+// apply in exactly one place.
 
 import type {
   CardEntity,
-  DeckEntity,
   DiceEntity,
   Entity,
-  HandEntity,
+  MatEntity,
   Pos,
   TokenEntity,
   Version,
 } from './types';
 import type { Mutation, TableState } from './reducers';
-import { containerCards } from './containers';
+import { getMat, matItems } from './mats';
 import { newId } from './types';
 import { randInt, shuffled } from './rng';
 
@@ -31,114 +34,143 @@ function put(ctx: OpCtx, e: Entity): Mutation {
   return { t: 'put', entity: e };
 }
 
-/** Remove a card id from whatever container list mentions it. */
-function pluckFromContainer(ctx: OpCtx, card: CardEntity): Mutation[] {
-  if (card.parent === null) return [];
-  const holder = ctx.state.entities[card.parent];
-  if (!holder || (holder.kind !== 'deck' && holder.kind !== 'hand')) return [];
-  const h = ctx.clone(holder);
-  h.state.cards = h.state.cards.filter((id) => id !== card.id);
-  return [put(ctx, h)];
+/** Remove an item id from whatever mat order-list mentions it. */
+function pluckFromMat(ctx: OpCtx, item: Entity): Mutation[] {
+  const holder = getMat(ctx.state, item.parent);
+  if (!holder) return [];
+  if (!holder.state.order.includes(item.id)) return [];
+  const m = ctx.clone(holder);
+  m.state.order = m.state.order.filter((id) => id !== item.id);
+  return [put(ctx, m)];
 }
 
-export function shuffleDeck(ctx: OpCtx, deck: DeckEntity): Mutation[] {
-  const d = ctx.clone(deck);
-  d.state.cards = shuffled(containerCards(ctx.state, deck).map((c) => c.id));
-  return [put(ctx, d)];
+/** Snap a mat-relative position per the mat's placement policy. */
+export function snapPos(mat: MatEntity, pos: Pos): Pos {
+  const p = mat.config.placement;
+  if (p.type === 'grid' && p.grid) {
+    const g = p.grid.size;
+    return { ...pos, x: Math.round(pos.x / g) * g, y: Math.round(pos.y / g) * g };
+  }
+  if (p.type === 'slots' && p.slots?.length) {
+    let best = p.slots[0];
+    let bd = Infinity;
+    for (const s of p.slots) {
+      const d = (s.x - pos.x) ** 2 + (s.y - pos.y) ** 2;
+      if (d < bd) {
+        bd = d;
+        best = s;
+      }
+    }
+    return { ...pos, x: best.x, y: best.y };
+  }
+  return pos;
 }
 
-export function drawToHand(ctx: OpCtx, deck: DeckEntity, hand: HandEntity, n = 1): Mutation[] {
-  const cards = containerCards(ctx.state, deck).slice(0, n);
-  if (cards.length === 0) return [];
-  const d = ctx.clone(deck);
-  const h = ctx.clone(hand);
-  const taken = new Set(cards.map((c) => c.id));
-  d.state.cards = d.state.cards.filter((id) => !taken.has(id));
-  h.state.cards = [...h.state.cards, ...cards.map((c) => c.id)];
-  const muts = [put(ctx, d), put(ctx, h)];
-  for (const card of cards) {
-    const c = ctx.clone(card);
-    c.parent = hand.id;
-    muts.push(put(ctx, c));
+export interface MoveOpts {
+  /** mat-relative position (free/grid/slots mats) */
+  pos?: Pos;
+  /** order insertion for stack/fan mats */
+  where?: 'top' | 'bottom' | 'shuffle';
+  /** override the mat's faceDefault for this move (e.g. shift-drop) */
+  face?: 'up' | 'down' | 'keep';
+}
+
+/** THE move: item into a mat. Applies the entry face rule only when the
+ *  parent actually changes (moving within a mat never re-flips, SPEC §10). */
+export function moveToMat(ctx: OpCtx, item: Entity, mat: MatEntity, opts: MoveOpts = {}): Mutation[] {
+  const entering = item.parent !== mat.id;
+  const muts = entering ? pluckFromMat(ctx, item) : [];
+
+  const m = ctx.clone(mat);
+  const rest = m.state.order.filter((id) => id !== item.id);
+  const where = opts.where ?? (m.config.placement.type === 'fan' ? 'bottom' : 'top');
+  m.state.order =
+    where === 'top'
+      ? [item.id, ...rest]
+      : where === 'bottom'
+        ? [...rest, item.id]
+        : shuffled([item.id, ...rest]);
+
+  const it = ctx.clone(item);
+  it.parent = mat.id;
+  if (opts.pos) it.pos = snapPos(m, opts.pos);
+  if (it.kind === 'card' && entering) {
+    const face = opts.face ?? m.config.faceDefault;
+    if (face !== 'keep') it.state.faceUp = face === 'up';
+  }
+  return [...muts, put(ctx, m), put(ctx, it)];
+}
+
+/** Move an item to the root table (or out of any mat) at a table position. */
+export function moveToTable(ctx: OpCtx, item: Entity, pos: Pos, faceUp?: boolean): Mutation[] {
+  const muts = pluckFromMat(ctx, item);
+  const it = ctx.clone(item);
+  it.parent = null;
+  it.pos = pos;
+  if (it.kind === 'card' && faceUp !== undefined) it.state.faceUp = faceUp;
+  return [...muts, put(ctx, it)];
+}
+
+export function shuffleMat(ctx: OpCtx, mat: MatEntity): Mutation[] {
+  const m = ctx.clone(mat);
+  m.state.order = shuffled(matItems(ctx.state, mat).map((e) => e.id));
+  return [put(ctx, m)];
+}
+
+/** Move the top n items of `from` into `to` (draw). */
+export function drawTo(ctx: OpCtx, from: MatEntity, to: MatEntity, n = 1): Mutation[] {
+  const items = matItems(ctx.state, from).slice(0, n);
+  if (items.length === 0) return [];
+  const f = ctx.clone(from);
+  const t = ctx.clone(to);
+  const taken = new Set(items.map((e) => e.id));
+  f.state.order = f.state.order.filter((id) => !taken.has(id));
+  const rest = t.state.order.filter((id) => !taken.has(id));
+  t.state.order =
+    t.config.placement.type === 'fan'
+      ? [...rest, ...items.map((e) => e.id)]
+      : [...items.map((e) => e.id).reverse(), ...rest];
+  const muts = [put(ctx, f), put(ctx, t)];
+  for (const item of items) {
+    const it = ctx.clone(item);
+    it.parent = to.id;
+    if (it.kind === 'card' && t.config.faceDefault !== 'keep')
+      it.state.faceUp = t.config.faceDefault === 'up';
+    muts.push(put(ctx, it));
   }
   return muts;
 }
 
-export function drawToTable(ctx: OpCtx, deck: DeckEntity, pos: Pos, faceUp: boolean): Mutation[] {
-  const card = containerCards(ctx.state, deck)[0];
-  if (!card) return [];
-  const d = ctx.clone(deck);
-  d.state.cards = d.state.cards.filter((id) => id !== card.id);
-  const c = ctx.clone(card);
-  c.parent = null;
-  c.pos = pos;
-  c.state.faceUp = faceUp;
-  return [put(ctx, d), put(ctx, c)];
-}
-
-/** Deal n cards to each hand, round-robin from the top, like a real deal. */
-export function deal(ctx: OpCtx, deck: DeckEntity, hands: HandEntity[], n: number): Mutation[] {
+/** Deal n cards to each mat, round-robin from the top, like a real deal. */
+export function deal(ctx: OpCtx, from: MatEntity, hands: MatEntity[], n: number): Mutation[] {
   if (hands.length === 0) return [];
-  const available = containerCards(ctx.state, deck);
-  const d = ctx.clone(deck);
+  const available = matItems(ctx.state, from);
+  const f = ctx.clone(from);
   const hs = hands.map((h) => ctx.clone(h));
   const cardMuts: Mutation[] = [];
   let i = 0;
   for (let round = 0; round < n; round++) {
     for (const h of hs) {
-      const card = available[i++];
-      if (!card) break;
-      h.state.cards = [...h.state.cards, card.id];
-      const c = ctx.clone(card);
-      c.parent = h.id;
-      cardMuts.push(put(ctx, c));
+      const item = available[i++];
+      if (!item) break;
+      h.state.order = [...h.state.order.filter((id) => id !== item.id), item.id];
+      const it = ctx.clone(item);
+      it.parent = h.id;
+      if (it.kind === 'card' && h.config.faceDefault !== 'keep')
+        it.state.faceUp = h.config.faceDefault === 'up';
+      cardMuts.push(put(ctx, it));
     }
   }
-  const dealt = new Set(available.slice(0, i).map((c) => c.id));
-  d.state.cards = d.state.cards.filter((id) => !dealt.has(id));
-  return [put(ctx, d), ...hs.map((h) => put(ctx, h)), ...cardMuts];
+  const dealt = new Set(available.slice(0, i).map((e) => e.id));
+  f.state.order = f.state.order.filter((id) => !dealt.has(id));
+  return [put(ctx, f), ...hs.map((h) => put(ctx, h)), ...cardMuts];
 }
 
-/** Move a card (from table, a hand, or another deck) onto a deck. */
-export function returnToDeck(
-  ctx: OpCtx,
-  card: CardEntity,
-  deck: DeckEntity,
-  where: 'top' | 'bottom' | 'shuffle',
-): Mutation[] {
-  const muts = pluckFromContainer(ctx, card);
-  const d = ctx.clone(deck);
-  const rest = containerCards(ctx.state, deck)
-    .map((c) => c.id)
-    .filter((id) => id !== card.id);
-  d.state.cards =
-    where === 'top'
-      ? [card.id, ...rest]
-      : where === 'bottom'
-        ? [...rest, card.id]
-        : shuffled([card.id, ...rest]);
-  const c = ctx.clone(card);
-  c.parent = deck.id;
-  return [...muts, put(ctx, d), put(ctx, c)];
-}
-
-/** Play a card to the table at pos (from a hand, a deck, or elsewhere on the table). */
-export function playToTable(ctx: OpCtx, card: CardEntity, pos: Pos, faceUp: boolean): Mutation[] {
-  const muts = pluckFromContainer(ctx, card);
-  const c = ctx.clone(card);
-  c.parent = null;
-  c.pos = pos;
-  c.state.faceUp = faceUp;
-  return [...muts, put(ctx, c)];
-}
-
-export function takeToHand(ctx: OpCtx, card: CardEntity, hand: HandEntity): Mutation[] {
-  const muts = pluckFromContainer(ctx, card);
-  const h = ctx.clone(hand);
-  h.state.cards = [...h.state.cards.filter((id) => id !== card.id), card.id];
-  const c = ctx.clone(card);
-  c.parent = hand.id;
-  return [...muts, put(ctx, h), put(ctx, c)];
+/** Pull the top item of a stack onto the table at pos. */
+export function drawToTable(ctx: OpCtx, from: MatEntity, pos: Pos, faceUp: boolean): Mutation[] {
+  const item = matItems(ctx.state, from)[0];
+  if (!item) return [];
+  return moveToTable(ctx, item, pos, item.kind === 'card' ? faceUp : undefined);
 }
 
 export function flipCard(ctx: OpCtx, card: CardEntity): Mutation[] {
@@ -147,29 +179,30 @@ export function flipCard(ctx: OpCtx, card: CardEntity): Mutation[] {
   return [put(ctx, c)];
 }
 
-/** Flip the deck's top card in place (visible per the deck's facePolicy). */
-export function flipTop(ctx: OpCtx, deck: DeckEntity): Mutation[] {
-  const card = containerCards(ctx.state, deck)[0];
-  if (!card) return [];
-  return flipCard(ctx, card);
+/** Flip the mat's top card in place. */
+export function flipTop(ctx: OpCtx, mat: MatEntity): Mutation[] {
+  const item = matItems(ctx.state, mat)[0];
+  if (!item || item.kind !== 'card') return [];
+  return flipCard(ctx, item);
 }
 
-/** Gather every card loose on the table back into a deck (face down). */
-export function gatherTableCards(ctx: OpCtx, deck: DeckEntity): Mutation[] {
+/** Gather every loose card on the table back into a mat (face per entry rule). */
+export function gatherTableCards(ctx: OpCtx, mat: MatEntity): Mutation[] {
   const loose = Object.values(ctx.state.entities).filter(
     (e): e is CardEntity => e.kind === 'card' && e.parent === null,
   );
   if (loose.length === 0) return [];
-  const d = ctx.clone(deck);
-  d.state.cards = [...loose.map((c) => c.id), ...containerCards(ctx.state, deck).map((c) => c.id)];
+  const m = ctx.clone(mat);
+  m.state.order = [...loose.map((c) => c.id), ...matItems(ctx.state, mat).map((e) => e.id)];
   const muts: Mutation[] = [];
   for (const card of loose) {
     const c = ctx.clone(card);
-    c.parent = deck.id;
-    c.state.faceUp = false;
+    c.parent = mat.id;
+    if (m.config.faceDefault !== 'keep') c.state.faceUp = m.config.faceDefault === 'up';
+    else c.state.faceUp = false;
     muts.push(put(ctx, c));
   }
-  return [...muts, put(ctx, d)];
+  return [...muts, put(ctx, m)];
 }
 
 /** Roll every die: the actor resolves randomness locally (SPEC §5). */
@@ -210,12 +243,11 @@ export function splitToken(ctx: OpCtx, src: TokenEntity, n: number, pos: Pos): M
   return [put(ctx, rest), put(ctx, taken)];
 }
 
-/** Delete an entity; deleting a container deletes the cards inside it. */
+/** Delete an entity; deleting a mat deletes everything inside, recursively. */
 export function deleteEntity(ctx: OpCtx, e: Entity): Mutation[] {
   const muts: Mutation[] = [];
-  if (e.kind === 'deck' || e.kind === 'hand') {
-    for (const c of containerCards(ctx.state, e))
-      muts.push({ t: 'del', id: c.id, version: ctx.next() });
+  if (e.kind === 'mat') {
+    for (const item of matItems(ctx.state, e)) muts.push(...deleteEntity(ctx, item));
   }
   muts.push({ t: 'del', id: e.id, version: ctx.next() });
   return muts;

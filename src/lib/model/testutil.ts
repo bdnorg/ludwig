@@ -17,8 +17,10 @@ export class TestPeer implements OpCtx {
     return structuredClone(e);
   }
   observe(muts: Mutation[]): void {
-    for (const m of muts)
+    for (const m of muts) {
+      if (m.t === 'log') continue;
       this.clock = Math.max(this.clock, m.t === 'put' ? m.entity.version.clock : m.version.clock);
+    }
   }
   apply(muts: Mutation[]): void {
     this.observe(muts);

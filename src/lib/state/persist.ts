@@ -8,7 +8,10 @@ export function loadTable(room: string): TableState {
     const raw = localStorage.getItem(key(room));
     if (raw) {
       const s = JSON.parse(raw) as TableState;
-      if (s && s.entities && s.tombstones) return s;
+      if (s && s.entities && s.tombstones) {
+        s.log ??= {};
+        return s;
+      }
     }
   } catch {
     /* corrupt save — start fresh */
@@ -43,8 +46,11 @@ export function exportTable(room: string, s: TableState): void {
 export function exportTemplate(room: string, s: TableState): void {
   const t: TableState = JSON.parse(JSON.stringify(s));
   t.tombstones = {};
+  t.log = {};
   const handIds = new Set(
-    Object.values(t.entities).filter((e) => e.kind === 'hand').map((e) => e.id),
+    Object.values(t.entities)
+      .filter((e) => e.kind === 'mat' && e.config.ownerId !== null && e.config.docked)
+      .map((e) => e.id),
   );
   for (const id of handIds) delete t.entities[id];
   let i = 0;

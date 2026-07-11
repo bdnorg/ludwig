@@ -2,7 +2,7 @@
 // All mutations — local UI actions and remote messages — funnel through
 // commit()/receive() into the pure reducers.
 
-import type { Entity, HandEntity, PlayerInfo, Version } from '../model/types';
+import type { Entity, MatEntity, PlayerInfo, Version, ViewMode } from '../model/types';
 import type { Mutation, TableState } from '../model/reducers';
 import {
   applyMutations,
@@ -12,7 +12,8 @@ import {
   mergeSnapshot,
 } from '../model/reducers';
 import type { OpCtx } from '../model/ops';
-import { handIdFor } from '../model/containers';
+import { handIdFor, makeMat, matPresets } from '../model/mats';
+import { newId } from '../model/types';
 import { loadPlayer } from './player';
 import { loadTable, saveTable } from './persist';
 
@@ -44,6 +45,12 @@ export class TableStore implements OpCtx {
   dragPos = $state<Record<string, { x: number; y: number }>>({});
   /** remote cursors, peerId -> pointer */
   pointers = $state<Record<string, PointerState>>({});
+  /** LOCAL view preferences per mat — never synced (SPEC §11) */
+  views = $state<Record<string, ViewMode>>({});
+  /** current table zoom, published by the Table component for pointer math */
+  uiScale = $state(1);
+  /** a needsMat action is waiting for a mat letter (shows letter badges) */
+  pendingSend = $state<{ actionId: string; selId: string } | null>(null);
 
   me: PlayerInfo = $state(loadPlayer());
   net: NetLink | null = null;
@@ -64,7 +71,18 @@ export class TableStore implements OpCtx {
     this.pointers = {};
     this.undoStack = [];
     this.undoDepth = 0;
+    try {
+      this.views = JSON.parse(localStorage.getItem(`ludwig:views:${room}`) ?? '{}');
+    } catch {
+      this.views = {};
+    }
     this.ensureHand();
+  }
+
+  setView(matId: string, mode: ViewMode): void {
+    if (mode === 'auto') delete this.views[matId];
+    else this.views[matId] = mode;
+    localStorage.setItem(`ludwig:views:${this.room}`, JSON.stringify(this.views));
   }
 
   // ---- OpCtx ----
@@ -112,7 +130,8 @@ export class TableStore implements OpCtx {
 
   /** Apply remotely-authored mutations. */
   receive(muts: Mutation[]): void {
-    for (const m of muts) this.observe(m.t === 'put' ? m.entity.version : m.version);
+    for (const m of muts)
+      if (m.t !== 'log') this.observe(m.t === 'put' ? m.entity.version : m.version);
     applyMutations(this.state, muts);
     for (const m of muts) delete this.dragPos[m.t === 'put' ? m.entity.id : m.id];
     this.saveSoon();
@@ -167,35 +186,33 @@ export class TableStore implements OpCtx {
     return z;
   }
 
-  myHand(): HandEntity {
+  myHand(): MatEntity {
     this.ensureHand();
-    return this.state.entities[handIdFor(this.me.id)] as HandEntity;
+    return this.state.entities[handIdFor(this.me.id)] as MatEntity;
   }
 
   ensureHand(): void {
     const id = handIdFor(this.me.id);
     if (this.state.entities[id]) return;
-    const hand: HandEntity = {
-      id,
-      kind: 'hand',
-      version: this.next(),
-      parent: null,
-      pos: { x: 0, y: 0, z: 0, rot: 0 },
-      locked: true,
-      config: { ownerId: this.me.id },
-      state: { cards: [], revealedTo: [] },
-    };
+    const hand = makeMat(this.next(), { x: 0, y: 0, z: 0, rot: 0 }, matPresets.hand(this.me.id));
     this.emit([{ t: 'put', entity: hand }]); // setup, not undoable
   }
 
   /** Hands of currently-connected players, in stable (player id) order —
    *  the deal order. Includes me. */
-  connectedHands(): HandEntity[] {
+  connectedHands(): MatEntity[] {
     const ids = new Set<string>([this.me.id, ...Object.values(this.peers)]);
     return [...ids]
       .sort()
       .map((pid) => this.state.entities[handIdFor(pid)])
-      .filter((e): e is HandEntity => e?.kind === 'hand');
+      .filter((e): e is MatEntity => e?.kind === 'mat');
+  }
+
+  /** Append to the shared message log (visibility changes, notices). */
+  logMsg(text: string): void {
+    this.emit([
+      { t: 'log', id: newId('log'), entry: { at: Date.now(), actor: this.me.id, text } },
+    ]);
   }
 
   playerName(playerId: string): string {

@@ -41,7 +41,12 @@ timers, zones, and notes — or import your own card set / saved template
 | Flip a card | double-click it |
 | Play from hand | drag out of the tray (⇧ plays face down) |
 | Return a card to a deck | drop it on the deck |
-| Shuffle, deal, search… | right-click a deck |
+| Shuffle, deal, search… | right-click a deck, or use its hover buttons |
+| Command palette | Space (actions for whatever you're pointing at) |
+| Keyboard verbs | d draw · f flip · r shuffle/roll · h to hand · x delete |
+| Send to a mat | s, then the mat's letter (badges appear) |
+| Change my view of a mat | right-click → "My view" (fan/stack/collapsed) |
+| Change visibility | right-click a mat → Faces/Count (changes are logged) |
 | Reveal your hand | "reveal all" in the hand tray |
 | Roll dice | double-click them |
 | Split a chip stack | right-click → Take 1 / Split stack… |

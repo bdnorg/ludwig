@@ -3,9 +3,10 @@
 // copyrightable); no flavor text or art. The platform enforces none of it —
 // players play the cards, exactly as at a real table (SPEC §1).
 
-import type { NoteEntity, Pos, ZoneEntity } from './types';
+import type { NoteEntity, Pos } from './types';
 import type { Mutation } from './reducers';
 import type { OpCtx } from './ops';
+import { makeMat, matPresets } from './mats';
 import { newId } from './types';
 import { buildCardSet, type CardSpec } from './cardsets';
 import { CARD_W, CARD_H } from './cards52';
@@ -105,16 +106,10 @@ export function dominionTable(ctx: OpCtx, origin: Pos): Mutation[] {
   // trash pile (empty face-up deck) and setup note
   pile({ title: 'Trash', color: ACTION }, at(2, 0), 0);
 
-  const zone: ZoneEntity = {
-    id: newId('zone'),
-    kind: 'zone',
-    version: ctx.next(),
-    parent: null,
-    pos: at(3, 2.9),
-    locked: false,
-    config: { label: 'Play area', w: GAP_X * 5 - 28, h: CARD_H + 60, color: '#3d9be4', autoFaceDown: false },
-    state: {},
-  };
+  const zone = makeMat(ctx.next(), at(3, 2.9), {
+    ...matPresets.zone('Play area'),
+    size: { w: GAP_X * 5 - 28, h: CARD_H + 60 },
+  });
   const note: NoteEntity = {
     id: newId('note'),
     kind: 'note',

@@ -1,113 +1,183 @@
 <script lang="ts">
-  import type { Entity } from '../model/types';
+  import type { CardEntity, Entity, MatEntity, ViewMode } from '../model/types';
   import { table } from '../state/store.svelte';
-  import { containerCards, topCard } from '../model/containers';
+  import {
+    canSeeCount,
+    canSeeExistence,
+    canSeeFaces,
+    faceVisible,
+    matItems,
+    privileged,
+    topItem,
+  } from '../model/mats';
+  import Self from './EntityView.svelte';
   import CardFaceView from './CardFaceView.svelte';
   import NoteView from './NoteView.svelte';
   import DiceView from './DiceView.svelte';
   import CounterView from './CounterView.svelte';
   import ScoreboardView from './ScoreboardView.svelte';
   import TimerView from './TimerView.svelte';
-  import ZoneView from './ZoneView.svelte';
+  import MatRegion from './MatRegion.svelte';
 
   type Handler = (e: PointerEvent | MouseEvent, ent: Entity) => void;
-  let {
-    entity,
-    scale = 1,
-    onGrab,
-    onDouble,
-    onMenu,
-  }: { entity: Entity; scale?: number; onGrab: Handler; onDouble: Handler; onMenu: Handler } =
-    $props();
+  type GhostHandler = (e: PointerEvent, cardId: string, srcMatId: string) => void;
+  interface Handlers {
+    onGrab: Handler;
+    onDouble: Handler;
+    onMenu: Handler;
+    onGhostGrab: GhostHandler;
+    onHover: (id: string | null) => void;
+  }
+  let { entity, handlers }: { entity: Entity; handlers: Handlers } = $props();
 
+  const me = $derived(table.me.id);
   const pos = $derived(table.dragPos[entity.id] ?? entity.pos);
-  // zones live on a negative band so they can never rise above pieces
+  const isRegion = $derived(
+    entity.kind === 'mat' && ['free', 'grid', 'slots'].includes(entity.config.placement.type),
+  );
+  // region mats live on a negative band so they can never rise above pieces
   const z = $derived(
-    entity.kind === 'zone'
-      ? entity.pos.z - 1000000
-      : table.dragPos[entity.id]
-        ? 100000
-        : entity.pos.z,
+    isRegion ? entity.pos.z - 1000000 : table.dragPos[entity.id] ? 100000 : entity.pos.z,
   );
 
-  const deckCards = $derived(entity.kind === 'deck' ? containerCards(table.state, entity) : []);
-  const deckTop = $derived(entity.kind === 'deck' ? topCard(table.state, entity) : undefined);
-  const deckShowsFront = $derived(
-    entity.kind === 'deck' &&
-      deckTop !== undefined &&
-      (entity.config.facePolicy === 'up' || deckTop.state.faceUp),
-  );
+  const mat = $derived(entity.kind === 'mat' ? (entity as MatEntity) : null);
+  const items = $derived(mat ? matItems(table.state, mat) : []);
+  const top = $derived(mat ? items[0] : undefined);
+  const connectedIds = $derived([...new Set([me, ...Object.values(table.peers)])]);
+  const isPrivileged = $derived(mat ? privileged(mat, me, connectedIds) : false);
+  const showCount = $derived(mat ? canSeeCount(mat, me) : true);
+
+  const view = $derived.by((): ViewMode | 'region' => {
+    if (!mat) return 'auto';
+    if (isRegion) return 'region';
+    const pref = table.views[mat.id];
+    if (pref && pref !== 'auto') return pref;
+    if (mat.config.placement.type === 'fan') return canSeeFaces(mat, me) ? 'fan' : 'stack';
+    return 'stack';
+  });
+
+  function cardFace(c: CardEntity) {
+    return faceVisible(table.state, c, me) ? c.config.front : null;
+  }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-  class="entity"
-  class:locked={entity.locked}
-  style:left="{pos.x}px"
-  style:top="{pos.y}px"
-  style:z-index={z}
-  data-entity-id={entity.id}
-  data-drop={entity.kind === 'deck'
-    ? `deck:${entity.id}`
-    : entity.kind === 'token'
-      ? `token:${entity.id}`
-      : undefined}
-  onpointerdown={(e) => onGrab(e, entity)}
-  ondblclick={(e) => onDouble(e, entity)}
-  oncontextmenu={(e) => onMenu(e, entity)}
->
-  {#if entity.kind === 'token'}
-    <div
-      class="token"
-      class:square={entity.config.shape === 'square'}
-      style:width="{entity.config.size}px"
-      style:height="{entity.config.size}px"
-      style:background={entity.config.color}
-    >
-      {entity.config.label}
-      {#if (entity.state.count ?? 1) > 1}
-        <span class="stack">×{entity.state.count}</span>
-      {/if}
-    </div>
-  {:else if entity.kind === 'dice'}
-    <DiceView dice={entity} />
-  {:else if entity.kind === 'counter'}
-    <CounterView counter={entity} />
-  {:else if entity.kind === 'scoreboard'}
-    <ScoreboardView board={entity} />
-  {:else if entity.kind === 'timer'}
-    <TimerView timer={entity} />
-  {:else if entity.kind === 'zone'}
-    <ZoneView zone={entity} {scale} />
-  {:else if entity.kind === 'note'}
-    <NoteView note={entity} />
-  {:else if entity.kind === 'card'}
-    <CardFaceView
-      face={entity.state.faceUp ? entity.config.front : null}
-      w={entity.config.w}
-      h={entity.config.h}
-    />
-  {:else if entity.kind === 'deck'}
-    <div class="deck" style:width="{entity.config.w}px" style:height="{entity.config.h}px">
-      {#if deckCards.length === 0}
-        <div class="empty" style:width="{entity.config.w}px" style:height="{entity.config.h}px">
-          {entity.config.label}
+{#if !(mat && !canSeeExistence(mat, me))}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="entity"
+    class:locked={entity.locked}
+    style:left="{pos.x}px"
+    style:top="{pos.y}px"
+    style:z-index={z}
+    data-entity-id={entity.id}
+    data-drop={entity.kind === 'mat'
+      ? `mat:${entity.id}`
+      : entity.kind === 'token'
+        ? `token:${entity.id}`
+        : undefined}
+    onpointerdown={(e) => handlers.onGrab(e, entity)}
+    ondblclick={(e) => handlers.onDouble(e, entity)}
+    oncontextmenu={(e) => handlers.onMenu(e, entity)}
+    onpointerenter={() => handlers.onHover(entity.id)}
+    onpointerleave={() => handlers.onHover(null)}
+  >
+    {#if mat}
+      {#if view === 'region'}
+        <MatRegion {mat} privileged={isPrivileged}>
+          {#each items as child (child.id)}
+            <Self entity={child} {handlers} />
+          {/each}
+        </MatRegion>
+      {:else if view === 'collapsed'}
+        <div class="chip" class:priv={isPrivileged}>
+          {mat.config.label}{#if showCount}&nbsp;· {items.length}{/if}
+          {#if isPrivileged}<span class="eye">👁</span>{/if}
+        </div>
+      {:else if view === 'fan'}
+        <div class="fan" class:priv={isPrivileged}>
+          {#each items as child (child.id)}
+            {#if child.kind === 'card'}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                class="fanslot"
+                onpointerdown={(e) => {
+                  e.stopPropagation();
+                  handlers.onGhostGrab(e, child.id, mat.id);
+                }}
+              >
+                <CardFaceView face={cardFace(child)} w={child.config.w} h={child.config.h} />
+              </div>
+            {/if}
+          {/each}
+          {#if items.length === 0}
+            <div class="empty small">{mat.config.label}</div>
+          {/if}
+          {#if isPrivileged}<span class="eye badge-eye">👁</span>{/if}
+          <span class="label">{mat.config.label}</span>
         </div>
       {:else}
-        {#if deckCards.length > 1}
-          <div class="under"><CardFaceView w={entity.config.w} h={entity.config.h} /></div>
-        {/if}
-        <CardFaceView
-          face={deckShowsFront ? deckTop?.config.front : null}
-          w={entity.config.w}
-          h={entity.config.h}
-        />
-        <span class="count">{deckCards.length}</span>
-        <span class="label">{entity.config.label}</span>
+        <!-- stack -->
+        <div class="stack" class:priv={isPrivileged} style:min-width="72px" style:min-height="100px">
+          {#if items.length === 0}
+            <div class="empty">{mat.config.label}</div>
+          {:else}
+            {#if items.length > 1}
+              <div class="under">
+                {#if top?.kind === 'card'}
+                  <CardFaceView w={top.config.w} h={top.config.h} />
+                {/if}
+              </div>
+            {/if}
+            {#if top?.kind === 'card'}
+              <CardFaceView face={cardFace(top)} w={top.config.w} h={top.config.h} />
+            {:else if top?.kind === 'token'}
+              <div
+                class="token"
+                style:width="{top.config.size}px"
+                style:height="{top.config.size}px"
+                style:background={top.config.color}
+              >
+                {top.config.label}
+              </div>
+            {/if}
+            {#if showCount}<span class="count">{items.length}</span>{/if}
+            {#if isPrivileged}<span class="eye badge-eye">👁</span>{/if}
+            <span class="label">{mat.config.label}</span>
+          {/if}
+        </div>
       {/if}
-    </div>
-  {/if}
-</div>
+    {:else if entity.kind === 'token'}
+      <div
+        class="token"
+        class:square={entity.config.shape === 'square'}
+        style:width="{entity.config.size}px"
+        style:height="{entity.config.size}px"
+        style:background={entity.config.color}
+      >
+        {entity.config.label}
+        {#if (entity.state.count ?? 1) > 1}
+          <span class="stackbadge">×{entity.state.count}</span>
+        {/if}
+      </div>
+    {:else if entity.kind === 'dice'}
+      <DiceView dice={entity} />
+    {:else if entity.kind === 'counter'}
+      <CounterView counter={entity} />
+    {:else if entity.kind === 'scoreboard'}
+      <ScoreboardView board={entity} />
+    {:else if entity.kind === 'timer'}
+      <TimerView timer={entity} />
+    {:else if entity.kind === 'note'}
+      <NoteView note={entity} />
+    {:else if entity.kind === 'card'}
+      <CardFaceView
+        face={entity.state.faceUp ? entity.config.front : null}
+        w={entity.config.w}
+        h={entity.config.h}
+      />
+    {/if}
+  </div>
+{/if}
 
 <style>
   .entity {
@@ -130,11 +200,12 @@
       inset 0 -3px 0 rgba(0, 0, 0, 0.25),
       0 1px 3px rgba(0, 0, 0, 0.4);
     user-select: none;
+    position: relative;
   }
   .token.square {
     border-radius: 4px;
   }
-  .stack {
+  .stackbadge {
     position: absolute;
     top: -9px;
     right: -12px;
@@ -145,10 +216,8 @@
     font-size: 0.6rem;
     color: var(--text);
   }
-  .token {
-    position: relative;
-  }
-  .deck {
+  .stack,
+  .fan {
     position: relative;
   }
   .under {
@@ -156,10 +225,29 @@
     left: 2px;
     top: 2px;
   }
-  .deck > :global(.face) {
+  .stack > :global(.face) {
+    position: relative;
+  }
+  .fan {
+    display: flex;
+    align-items: flex-end;
+    min-height: 100px;
+    min-width: 72px;
+  }
+  .fanslot {
+    margin-left: -46px;
+  }
+  .fanslot:first-child {
+    margin-left: 0;
+  }
+  .fanslot:hover {
+    transform: translateY(-8px);
+    z-index: 1;
     position: relative;
   }
   .empty {
+    width: 72px;
+    height: 100px;
     border: 2px dashed rgba(255, 255, 255, 0.35);
     border-radius: 6px;
     display: flex;
@@ -168,6 +256,16 @@
     color: rgba(255, 255, 255, 0.55);
     font-size: 0.7rem;
     user-select: none;
+    text-align: center;
+  }
+  .chip {
+    background: var(--panel);
+    border: 1px solid #454f60;
+    border-radius: 14px;
+    padding: 4px 12px;
+    font-size: 0.75rem;
+    user-select: none;
+    white-space: nowrap;
   }
   .count {
     position: absolute;
@@ -189,5 +287,22 @@
     color: rgba(255, 255, 255, 0.6);
     white-space: nowrap;
     user-select: none;
+  }
+  /* privileged view: I can see more here than someone else can (SPEC §11) */
+  .priv > :global(.face.front),
+  .chip.priv,
+  .fan.priv {
+    outline: 2px dashed var(--accent);
+    outline-offset: 2px;
+  }
+  .eye {
+    font-size: 0.7rem;
+  }
+  .badge-eye {
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    z-index: 2;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
   }
 </style>
