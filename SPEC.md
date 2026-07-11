@@ -1,5 +1,9 @@
 # Ludwig — Platform Specification
 
+> **Note:** Part I (§1–9) describes the v1 platform as built (M1–M6).
+> Part II (§10–14) is the v2 design — Mats, Actions, Gameboxes — which
+> **supersedes** the Deck/Hand/Zone kinds of §3 via a clean refactor.
+
 Ludwig is a browser-based virtual tabletop for board and card games. It models
 **physical objects** — cards, decks, hands, tokens, dice, timers, boards — not
 game rules. Players manipulate objects the way they would at a real table; the
@@ -218,3 +222,151 @@ scoreboard, and chips (tokens). No feature may special-case any of these games.
 - Host-authoritative or commit-reveal modes for stronger cheat resistance.
 - Boards with snap-points, custom card-set editor/importer, images-from-URL decks.
 - Spectators, voice/video, mobile-optimized layout, TURN fallback for hostile NATs.
+
+---
+
+# Part II — Mats, Actions, Gameboxes (v2)
+
+Design principle (unchanged): simple, powerful primitives with good defaults,
+defined in templates, overridable. Gamebox authors may face complexity;
+players must not — advanced options stay folded away until a game needs them.
+
+## 10. The Mat
+
+One container kind absorbs deck, hand, zone, discard pile, and board. The
+table itself is the root mat (`parent: null` = "on the table").
+
+```jsonc
+{
+  "kind": "mat",
+  "config": {
+    "label": "Hand",
+    "letter": "h",                  // keyboard-target badge (§12)
+    "ownerId": null,                // or a player id (hands, player boards)
+    "placement": {
+      "type": "free",               // free | grid | slots | stack | fan
+      "grid": { "size": 40 },       // grid only
+      "slots": [                    // slots only (Catan: hexes/vertices/edges)
+        { "id": "hex-0", "x": 120, "y": 80, "accepts": ["tile"] }
+      ]
+    },
+    "faceDefault": "keep",          // up | down | keep — applied to cards on entry
+    "visibility": {                 // each: "public" | "owner" | [playerIds] ([] = nobody)
+      "faces": "owner",             //   who sees fronts of contained cards
+      "count": "public",            //   who sees how many items it holds   (advanced)
+      "existence": "public"         //   who sees the mat at all            (advanced)
+    },
+    "image": null,                  // board art URL
+    "size": { "w": 300, "h": 200 }  // extent for free/grid/slots; stacks/fans auto-size
+  },
+  "state": { "order": ["cardId", ...] }   // z/stack order; membership authority
+}                                          // remains child.parent (§3 rule)
+```
+
+The old kinds become configurations:
+
+| v1 kind      | Mat configuration |
+|--------------|-------------------|
+| Deck         | `stack`, faces `[]`, faceDefault `down` |
+| Discard pile | `stack`, faces `public`, faceDefault `up` |
+| Hand         | `fan`, faces `owner`, count `public`, ownerId set |
+| Zone         | `free`, faceDefault per zone, faces `public` |
+| Board        | `free`/`grid`/`slots` + `image` |
+| Table        | implicit root `free` mat |
+
+Mats nest arbitrarily (board → tile → token). A "stack of tokens" is a
+stack-mat of tokens — the M4 chip-stack special case dissolves into this.
+
+**Entry rules:** dropping an item into a mat applies `faceDefault` (on entry
+only, exactly like today's auto-face-down zones) and snaps per `placement`.
+Visibility is *derived at render time from the containing mat* — never
+stamped onto items — so moving a card between mats never needs a visibility
+mutation.
+
+## 11. Shared state vs. local view
+
+Two layers, never confused:
+
+- **Shared, synced, versioned:** everything in §10, including visibility.
+  Any visibility change appends to the **message log** (below).
+- **Local, per-viewer, in localStorage:** how *I* render a mat — `fan`,
+  `stack`, `grid`, `collapsed` (count chip). Templates set defaults per
+  relationship (`ownerView: fan`, `otherView: stack`). Changing my view of
+  your hand never touches shared state, and no view can show me faces the
+  visibility policy denies.
+
+**Privileged-view indicator:** any mat where I can see more than some
+connected player renders with a distinct outline and a 👁 badge by its label.
+
+**Message log:** `TableState` gains `log: Record<id, {at, actor, text}>` —
+merge is union-by-id (CRDT-set, same convergence story as entities), render
+sorted by `at`, capped. Visibility changes always log ("Beth made Hand
+visible to everyone"); chat and gamebox events ride the same log later.
+
+## 12. Actions & bindings
+
+All interaction behavior moves out of hardcoded handlers into a declarative
+registry.
+
+- **Action:** `{ id, label, icon, appliesTo(selection) → bool, run(ctx, selection, args) → Mutation[] }`.
+  Core verbs: draw, flip, shuffle, send-to-mat, deal, search, split, roll,
+  lock, reveal, delete…
+- **Bindings** map triggers → actions, in JSON, cascading
+  *platform defaults → gamebox → user*:
+
+```jsonc
+{ "on": "dblclick", "target": "mat[placement=stack]", "action": "draw-to-hand" }
+{ "on": "hover",    "target": "mat[placement=stack]",
+  "buttons": ["draw", "shuffle", { "menu": ["deal", "search", "flip-top"] }] }
+{ "on": "drop", "from": "card", "to": "mat", "action": "move-into" }
+{ "on": "key", "seq": "s ?mat", "action": "send-to-mat" }   // s then a mat letter
+{ "on": "key", "seq": "f", "action": "flip" }
+```
+
+One registry, four surfaces: **hover buttons** (first N bindings; a `menu`
+entry expands), **context menu**, **command palette** (Space: fuzzy list of
+applicable actions with their shortcut hints — the discoverability layer),
+and **keys** (single keys plus vi-like stateful sequences; `?mat` prompts
+for a mat letter, badges appear on all mats while pending). Selection
+context = hovered or last-clicked item.
+
+v1 scope: palette + core verb set + auto-assigned mat letters; bindings are
+JSON-editable but there is no editor UI yet.
+
+## 13. Gamebox & game instances
+
+A **gamebox** is a JSON package of definitions, not state:
+
+```jsonc
+{
+  "name": "Settlers of Catan",
+  "defs": { ... item & mat templates ... },
+  "supplies": { "settlement-red": 5, "road-red": 15, "wood": 19, "dev-card": 25 },
+  "bindings": [ ... ],
+  "layouts": { "standard": [ ... initial table ... ] },
+  "reference": [ { "title": "Turn summary", "md": "..." } ]
+}
+```
+
+- **Supplies** may be finite; taking/returning items goes through the
+  gamebox, which tracks remaining counts.
+- **Reference** pages are readable in a panel without spawning anything.
+- The **game mat** is a docked mat holding meta state — instance name,
+  seats, turn marker, score — visible by default, perusable but compact.
+  It carries no rules engine: "whose turn" is a marker players move.
+- A **game instance** = a room (this already gives naming, isolation,
+  localStorage persistence, and switching without loss); the lobby grows a
+  "my tables" list to switch between named instances.
+
+## 14. v2 milestones
+
+- **M7 — Mats:** unified Mat kind (clean refactor of deck/hand/zone/chip-stack),
+  visibility (faces/count/existence + progressive disclosure), per-viewer
+  views + privileged-view indicator, message log, 52-card & Dominion
+  templates rebuilt on mats.
+- **M8 — Actions:** registry + bindings cascade, hover buttons with
+  expandable menu, command palette, mat letters & send-to sequences,
+  starter binding templates (card game / board game).
+- **M9 — Gamebox:** package format, finite supplies, reference panel, game
+  mat + named instances in lobby, **Settlers of Catan** as the proving
+  gamebox (slot-graph board, finite per-color pieces, resource/dev stacks).

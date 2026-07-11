@@ -75,3 +75,41 @@ with score kept on the scoreboard, no restarts required.
 | Public torrent trackers flaky for signaling | Trystero lets us list several trackers; swappable for self-hosted signaling later without app changes |
 | Concurrent-edit divergence between peers | All mutations through pure reducers + LWW tested in M2 before any card logic exists |
 | Drag/drop feel is bad → platform feels bad | Cards/tokens as DOM nodes with CSS transforms; playtest milestone dedicated to feel (M5) |
+
+---
+
+# v2 milestones (Mats → Actions → Gamebox)
+
+Decisions locked with the user (2026-07): clean refactor (deck/hand/zone →
+Mat, old saves discarded); full-spectrum visibility (faces/count/existence,
+advanced knobs folded away for players); sequencing mats → actions →
+gamebox; keyboard v1 = palette + core verbs + auto mat letters.
+
+## M7 — Mats (SPEC §10–11)
+- `mat` kind: placement (free/grid/slots/stack/fan), faceDefault,
+  visibility {faces, count, existence}, ownerId, image, nesting.
+- Refactor: deck/hand/zone/chip-stack become mat configs; ops generalized
+  (draw/shuffle/deal/send work on any stack/fan mat); hand tray renders
+  "my hand mat"; 52-card + Dominion templates rebuilt.
+- Per-viewer view prefs (local): fan/stack/grid/collapsed + template
+  defaults (ownerView/otherView); privileged-view outline + 👁 badge.
+- Message log: union-by-id log in TableState; visibility changes logged;
+  log panel UI.
+- Tests: mat entry rules, visibility derivation, view-permission ceiling,
+  log merge convergence; integration tests updated.
+
+## M8 — Actions (SPEC §12)
+- Action registry (core verbs) + bindings JSON with cascade
+  (platform → gamebox → user).
+- Hover buttons (with expandable ▾ menu), context menu, Space command
+  palette, key sequences (`f` flip, `d` draw, `s<letter>` send-to-mat),
+  auto mat letters with pending-badges.
+- Starter binding templates: card-game, board-game.
+
+## M9 — Gamebox (SPEC §13)
+- Gamebox package format: defs, finite supplies, bindings, layouts,
+  reference pages (readable without spawning).
+- Game mat (docked meta: name, seats, turn marker, score) + named
+  instances ("my tables" in lobby).
+- Settlers of Catan gamebox: slot-graph board (hex/vertex/edge slots),
+  finite per-color pieces, resource/dev stacks, robber, number tokens.
