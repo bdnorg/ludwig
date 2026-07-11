@@ -25,7 +25,8 @@ node scripts/p2ptest.mjs   # 2-browser P2P integration test (needs dev server + 
 ## Play
 
 Open the app, enter a name, start a table, and send the invite link to
-friends. Spawn a 52-card deck from the toolbar. Interactions:
+friends. Use **+ add to table** to spawn decks, chips, dice, counters,
+scoreboards, timers, zones, and notes. Interactions:
 
 | Action | How |
 |---|---|
@@ -37,3 +38,12 @@ friends. Spawn a 52-card deck from the toolbar. Interactions:
 | Return a card to a deck | drop it on the deck |
 | Shuffle, deal, search… | right-click a deck |
 | Reveal your hand | "reveal all" in the hand tray |
+| Roll dice | double-click them |
+| Split a chip stack | right-click → Take 1 / Split stack… |
+| Merge chip stacks | drop a stack onto a matching one |
+| Adjust scores | +/− on a counter or scoreboard |
+| Face-down play area | spawn a face-down zone; cards flip as they enter |
+| Resize a zone | drag its corner handle |
+
+Run `node scripts/m4test.mjs` alongside `p2ptest.mjs` for the toolkit
+integration test (both need the dev server and Chrome).

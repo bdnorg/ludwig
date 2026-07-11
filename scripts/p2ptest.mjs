@@ -45,7 +45,8 @@ if (a !== 2 || b !== 2) {
 console.log('PASS: peers connected, rosters show both players');
 
 // alice spawns a 52-card deck; bob should see it
-await alice.click('.toolbar button:nth-of-type(2)');
+await alice.click('.toolbar button.primary');
+await alice.click('.menu button:has-text("52-card deck")');
 await bob.waitForSelector('[data-drop^="deck:"]', { timeout: 15000 });
 console.log('PASS: deck created by alice appeared for bob');
 
