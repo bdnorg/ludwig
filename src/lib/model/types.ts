@@ -27,11 +27,15 @@ interface Base<K extends string, C, S> {
   state: S;
 }
 
-/** A renderable card face. Text-based faces cover the 52-card deck and
- *  Dominion-style text cards; `image` is a URL for art-based sets. */
+/** A renderable card face. Two text layouts: corner/center (playing cards)
+ *  and title/body/sub (Dominion-style text cards); `image` is a URL for
+ *  art-based sets. */
 export interface CardFace {
   corner?: string; // small label in the corners, e.g. "A♠"
   center?: string; // large center content, e.g. "♠"
+  title?: string; // card name across the top
+  body?: string; // rule text in the middle
+  sub?: string; // bottom line, e.g. cost / type
   color?: string;
   image?: string;
 }

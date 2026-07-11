@@ -1,0 +1,27 @@
+{
+  "name": "Potions",
+  "facePolicy": "down",
+  "cards": [
+    {
+      "title": "Healing Draught",
+      "body": "Restore 3 health.\nDiscard after use.",
+      "sub": "2g · Consumable",
+      "color": "#2e7d46",
+      "count": 6
+    },
+    {
+      "title": "Smoke Bomb",
+      "body": "Skip any player's turn.",
+      "sub": "3g · Consumable",
+      "color": "#4a4f58",
+      "count": 4
+    },
+    {
+      "title": "Philosopher's Stone",
+      "body": "Worth 5 points at game end.",
+      "sub": "8g · Relic",
+      "color": "#a5741a",
+      "count": 1
+    }
+  ]
+}

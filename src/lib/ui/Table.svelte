@@ -4,9 +4,13 @@
   import { newId } from '../model/types';
   import * as ops from '../model/ops';
   import { standardDeck, CARD_W, CARD_H } from '../model/cards52';
+  import { topCard } from '../model/containers';
+  import { buildCardSet, validateCardSet } from '../model/cardsets';
+  import { dominionTable } from '../model/dominion';
   import { table } from '../state/store.svelte';
   import { connect } from '../net/room';
-  import { exportTable } from '../state/persist';
+  import { exportTable, exportTemplate } from '../state/persist';
+  import { applyPendingTemplate } from '../state/templates';
   import type { MenuItem } from './menu';
   import EntityView from './EntityView.svelte';
   import HandTray from './HandTray.svelte';
@@ -22,6 +26,7 @@
   // App keys this component by room, so `room` is fixed for our lifetime.
   // svelte-ignore state_referenced_locally
   table.init(room);
+  applyPendingTemplate(table);
 
   onMount(() => {
     const link = connect(table, room);
@@ -105,6 +110,15 @@
   function onGrab(e: PointerEvent | MouseEvent, ent: Entity) {
     if (!(e instanceof PointerEvent) || e.button !== 0 || ent.locked) return;
     e.stopPropagation();
+    // dragging a deck pulls its top card, like a physical pile;
+    // hold Alt/Cmd/Ctrl to move the deck itself
+    if (ent.kind === 'deck' && !e.altKey && !e.metaKey && !e.ctrlKey) {
+      const top = topCard(table.state, ent);
+      if (top) {
+        startGhostDrag(e, top.id, ent.id);
+        return;
+      }
+    }
     const p = screenToTable(e.clientX, e.clientY);
     drag = { id: ent.id, dx: p.x - ent.pos.x, dy: p.y - ent.pos.y, moved: false };
     window.addEventListener('pointermove', onDragMove);
@@ -191,13 +205,33 @@
     return null;
   }
 
-  // ---- drag: cards out of the hand tray (ghost follows the cursor) ----
-  let handDrag = $state<{ id: string; sx: number; sy: number; x: number; y: number; moved: boolean } | null>(null);
+  // ---- ghost drag: cards out of the hand tray or off the top of a deck ----
+  let handDrag = $state<{
+    id: string;
+    srcDeck: string | null; // deck the card is being pulled from, if any
+    sx: number;
+    sy: number;
+    x: number;
+    y: number;
+    moved: boolean;
+  } | null>(null);
 
   function onHandCardGrab(e: PointerEvent, cardId: string) {
+    startGhostDrag(e, cardId, null);
+  }
+
+  function startGhostDrag(e: PointerEvent, cardId: string, srcDeck: string | null) {
     if (e.button !== 0) return;
     e.stopPropagation();
-    handDrag = { id: cardId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, moved: false };
+    handDrag = {
+      id: cardId,
+      srcDeck,
+      sx: e.clientX,
+      sy: e.clientY,
+      x: e.clientX,
+      y: e.clientY,
+      moved: false,
+    };
     window.addEventListener('pointermove', onHandDragMove);
     window.addEventListener('pointerup', onHandDragUp);
   }
@@ -216,8 +250,13 @@
     const card = table.get(d.id);
     if (card?.kind !== 'card') return;
     const target = dropTargetAt(e.clientX, e.clientY, d.id);
-    if (target?.type === 'tray') return; // dropped back into the hand
+    if (target?.type === 'tray') {
+      // into the hand: no-op from the tray, a draw from a deck
+      if (d.srcDeck) table.commit(ops.takeToHand(table, card, table.myHand()));
+      return;
+    }
     if (target?.type === 'deck') {
+      if (target.id === d.srcDeck) return; // dropped back where it came from
       const deck = table.get(target.id);
       if (deck?.kind === 'deck') {
         table.commit(ops.returnToDeck(table, card, deck, 'top'));
@@ -231,14 +270,25 @@
       z: table.maxZ() + 1,
       rot: 0,
     };
-    // shift-drop or an auto-face-down zone plays face down (e.g. passing in hearts)
-    const faceUp = !e.shiftKey && !faceDownZoneAt(p.x, p.y);
+    // hand plays face up, a face-up pile deals face up, a face-down deck deals
+    // face down; shift inverts, and an auto-face-down zone always wins
+    const src = d.srcDeck ? table.get(d.srcDeck) : null;
+    const naturalUp = src?.kind === 'deck' ? src.config.facePolicy === 'up' : true;
+    const faceUp = naturalUp !== e.shiftKey && !faceDownZoneAt(p.x, p.y);
     table.commit(ops.playToTable(table, card, pos, faceUp));
   }
 
   const handDragCard = $derived(
     handDrag?.moved ? (table.get(handDrag.id) as CardEntity | undefined) : undefined,
   );
+  // never reveal the top of a face-down deck while dragging it around
+  const handDragFace = $derived.by(() => {
+    if (!handDragCard || !handDrag) return null;
+    if (!handDrag.srcDeck) return handDragCard.config.front;
+    const src = table.get(handDrag.srcDeck);
+    const up = (src?.kind === 'deck' && src.config.facePolicy === 'up') || handDragCard.state.faceUp;
+    return up ? handDragCard.config.front : null;
+  });
 
   // ---- double-click ----
   function onDouble(e: PointerEvent | MouseEvent, ent: Entity) {
@@ -525,7 +575,25 @@
           ),
       },
       { label: '🗈 Note', run: () => spawn('note', { color: '#e7d980' }, { text: '' }) },
+      {
+        label: '⚔ Dominion setup (base)',
+        run: () => {
+          const p = centerPos();
+          table.commit(dominionTable(table, { x: p.x - 450, y: p.y - 280, z: p.z, rot: 0 }));
+        },
+      },
+      { label: '⇪ Import card set…', run: () => cardSetInput.click() },
     ];
+  }
+
+  let cardSetInput: HTMLInputElement;
+  async function importCardSet(file: File) {
+    try {
+      const spec = validateCardSet(JSON.parse(await file.text()));
+      table.commit(buildCardSet(table, spec, centerPos()));
+    } catch (err) {
+      alert(`Card set import failed: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   function openSpawnMenu(e: MouseEvent) {
@@ -535,6 +603,9 @@
   // ---- import / export ----
   function doExport() {
     exportTable(room, table.snapshot());
+  }
+  function doExportTemplate() {
+    exportTemplate(room, table.snapshot());
   }
   async function doImport(file: File) {
     try {
@@ -558,13 +629,36 @@
       menu = null;
       searchDeckId = null;
     }
+    const editing = (e.target as HTMLElement)?.tagName;
+    if (editing === 'INPUT' || editing === 'TEXTAREA') return;
+    if (e.key.toLowerCase() === 'z' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      table.undo();
+    }
   }
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} onpagehide={() => table.flush()} />
 
 <div class="table-screen">
-  <Toolbar onAddMenu={openSpawnMenu} onExport={doExport} onImport={doImport} />
+  <Toolbar
+    onAddMenu={openSpawnMenu}
+    onExport={doExport}
+    onExportTemplate={doExportTemplate}
+    onImport={doImport}
+    onUndo={() => table.undo()}
+  />
+  <input
+    type="file"
+    accept="application/json"
+    bind:this={cardSetInput}
+    hidden
+    onchange={(e) => {
+      const f = e.currentTarget.files?.[0];
+      if (f) importCardSet(f);
+      e.currentTarget.value = '';
+    }}
+  />
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -595,11 +689,7 @@
 
   {#if handDragCard}
     <div class="ghost" style:left="{handDrag!.x}px" style:top="{handDrag!.y}px">
-      <CardFaceView
-        face={handDragCard.config.front}
-        w={handDragCard.config.w}
-        h={handDragCard.config.h}
-      />
+      <CardFaceView face={handDragFace} w={handDragCard.config.w} h={handDragCard.config.h} />
     </div>
   {/if}
 

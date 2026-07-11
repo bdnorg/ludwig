@@ -4,7 +4,13 @@
 
 import type { Entity, HandEntity, PlayerInfo, Version } from '../model/types';
 import type { Mutation, TableState } from '../model/reducers';
-import { applyMutations, emptyTable, maxClock, mergeSnapshot } from '../model/reducers';
+import {
+  applyMutations,
+  emptyTable,
+  invertMutations,
+  maxClock,
+  mergeSnapshot,
+} from '../model/reducers';
 import type { OpCtx } from '../model/ops';
 import { handIdFor } from '../model/containers';
 import { loadPlayer } from './player';
@@ -44,6 +50,8 @@ export class TableStore implements OpCtx {
 
   private clock = 0;
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
+  private undoStack: Mutation[][] = [];
+  undoDepth = $state(0);
 
   init(room: string): void {
     this.me = loadPlayer(); // pick up lobby edits (name) made after module load
@@ -54,6 +62,8 @@ export class TableStore implements OpCtx {
     this.peers = {};
     this.dragPos = {};
     this.pointers = {};
+    this.undoStack = [];
+    this.undoDepth = 0;
     this.ensureHand();
   }
 
@@ -70,6 +80,29 @@ export class TableStore implements OpCtx {
 
   /** Apply and broadcast locally-authored mutations (one atomic batch). */
   commit(muts: Mutation[]): void {
+    if (muts.length === 0) return;
+    this.undoStack.push(invertMutations(this.state, muts));
+    if (this.undoStack.length > 50) this.undoStack.shift();
+    this.undoDepth = this.undoStack.length;
+    this.emit(muts);
+  }
+
+  /** Undo my most recent action: replay its inverse as a fresh LWW write. */
+  undo(): void {
+    const inverse = this.undoStack.pop();
+    this.undoDepth = this.undoStack.length;
+    if (!inverse) return;
+    this.emit(
+      inverse.map((m) =>
+        m.t === 'put'
+          ? { t: 'put', entity: { ...m.entity, version: this.next() } }
+          : { t: 'del', id: m.id, version: this.next() },
+      ),
+    );
+  }
+
+  /** Apply + broadcast without touching the undo stack (undo itself, setup). */
+  emit(muts: Mutation[]): void {
     if (muts.length === 0) return;
     applyMutations(this.state, muts);
     for (const m of muts) delete this.dragPos[m.t === 'put' ? m.entity.id : m.id];
@@ -102,6 +135,12 @@ export class TableStore implements OpCtx {
   saveSoon(): void {
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => saveTable(this.room, this.snapshot()), 400);
+  }
+
+  /** Immediate save — call on pagehide so a closing tab loses nothing. */
+  flush(): void {
+    clearTimeout(this.saveTimer);
+    if (this.room) saveTable(this.room, this.snapshot());
   }
 
   // ---- conveniences ----
@@ -146,7 +185,7 @@ export class TableStore implements OpCtx {
       config: { ownerId: this.me.id },
       state: { cards: [], revealedTo: [] },
     };
-    this.commit([{ t: 'put', entity: hand }]);
+    this.emit([{ t: 'put', entity: hand }]); // setup, not undoable
   }
 
   /** Hands of currently-connected players, in stable (player id) order —

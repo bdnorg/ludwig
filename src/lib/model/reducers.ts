@@ -59,6 +59,27 @@ export function mergeSnapshot(s: TableState, snap: TableState): boolean {
   return changed;
 }
 
+/** Mutations that would restore the state the ids in `muts` currently have —
+ *  compute BEFORE applying `muts`, replay later to undo. Versions are
+ *  placeholders; the caller re-stamps them with fresh clocks when undoing
+ *  (undo is just another LWW write, so peers converge on it like any edit). */
+export function invertMutations(s: TableState, muts: Mutation[]): Mutation[] {
+  const seen = new Set<string>();
+  const out: Mutation[] = [];
+  for (const m of muts) {
+    const id = m.t === 'put' ? m.entity.id : m.id;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const prior = s.entities[id];
+    out.push(
+      prior
+        ? { t: 'put', entity: JSON.parse(JSON.stringify(prior)) as Entity }
+        : { t: 'del', id, version: { clock: 0, actor: '' } },
+    );
+  }
+  return out;
+}
+
 /** Highest clock present in a state — used to seed the local Lamport clock. */
 export function maxClock(s: TableState): number {
   let c = 0;

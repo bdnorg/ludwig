@@ -24,11 +24,38 @@ export function saveTable(room: string, s: TableState): void {
   }
 }
 
-export function exportTable(room: string, s: TableState): void {
-  const blob = new Blob([JSON.stringify(s, null, 2)], { type: 'application/json' });
+function download(name: string, data: unknown): void {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `ludwig-${room}.json`;
+  a.download = name;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+export function exportTable(room: string, s: TableState): void {
+  download(`ludwig-${room}.json`, s);
+}
+
+/** Export as a reusable template: hands are dropped (their owners won't
+ *  exist at the next table) and any cards they held are laid out face down;
+ *  tombstones are cleared and versions reset so imports merge cleanly. */
+export function exportTemplate(room: string, s: TableState): void {
+  const t: TableState = JSON.parse(JSON.stringify(s));
+  t.tombstones = {};
+  const handIds = new Set(
+    Object.values(t.entities).filter((e) => e.kind === 'hand').map((e) => e.id),
+  );
+  for (const id of handIds) delete t.entities[id];
+  let i = 0;
+  for (const e of Object.values(t.entities)) {
+    e.version = { clock: 1, actor: 'template' };
+    if (e.kind === 'card' && e.parent !== null && handIds.has(e.parent)) {
+      e.parent = null;
+      e.state.faceUp = false;
+      e.pos = { x: 40 + (i % 8) * 80, y: -140, z: i, rot: 0 };
+      i++;
+    }
+  }
+  download(`ludwig-template-${room}.json`, t);
 }

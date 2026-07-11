@@ -11,7 +11,11 @@
 {#if face}
   <div class="face front" style:width="{w}px" style:height="{h}px" style:color={face.color ?? '#222'}>
     {#if face.image}
-      <img src={face.image} alt={face.corner ?? 'card'} draggable="false" />
+      <img src={face.image} alt={face.title ?? face.corner ?? 'card'} draggable="false" />
+    {:else if face.title || face.body}
+      <span class="title">{face.title}</span>
+      <span class="body">{face.body}</span>
+      {#if face.sub}<span class="sub">{face.sub}</span>{/if}
     {:else}
       <span class="corner tl">{face.corner}</span>
       <span class="center">{face.center}</span>
@@ -73,5 +77,42 @@
     align-items: center;
     justify-content: center;
     font-size: 2em;
+  }
+  .title {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    right: 4px;
+    text-align: center;
+    font-size: 0.5rem;
+    font-weight: 700;
+    line-height: 1.1;
+    border-bottom: 1px solid currentColor;
+    padding-bottom: 2px;
+  }
+  .body {
+    position: absolute;
+    top: 20px;
+    bottom: 14px;
+    left: 5px;
+    right: 5px;
+    font-size: 0.42rem;
+    line-height: 1.25;
+    color: #3a3a40;
+    display: flex;
+    align-items: center;
+    text-align: center;
+    white-space: pre-wrap;
+    overflow: hidden;
+  }
+  .sub {
+    position: absolute;
+    bottom: 3px;
+    left: 5px;
+    right: 5px;
+    font-size: 0.42rem;
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
   }
 </style>

@@ -24,14 +24,19 @@ node scripts/p2ptest.mjs   # 2-browser P2P integration test (needs dev server + 
 
 ## Play
 
-Open the app, enter a name, start a table, and send the invite link to
-friends. Use **+ add to table** to spawn decks, chips, dice, counters,
-scoreboards, timers, zones, and notes. Interactions:
+Open the app, enter a name, pick a template (sandbox, 52-card deck, or
+Dominion), start a table, and send the invite link to friends. Use
+**+ add to table** to spawn decks, chips, dice, counters, scoreboards,
+timers, zones, and notes — or import your own card set / saved template
+(see [TEMPLATES.md](TEMPLATES.md)). Interactions:
 
 | Action | How |
 |---|---|
 | Move anything | drag |
 | Pan / zoom table | drag background / scroll wheel |
+| Take the top card of a deck | drag it off the pile |
+| Move a whole deck | ⌥/Alt-drag it |
+| Undo your last action | ⌘Z / Ctrl-Z or the toolbar button |
 | Draw a card to your hand | double-click a deck |
 | Flip a card | double-click it |
 | Play from hand | drag out of the tray (⇧ plays face down) |
@@ -45,5 +50,13 @@ scoreboards, timers, zones, and notes. Interactions:
 | Face-down play area | spawn a face-down zone; cards flip as they enter |
 | Resize a zone | drag its corner handle |
 
-Run `node scripts/m4test.mjs` alongside `p2ptest.mjs` for the toolkit
-integration test (both need the dev server and Chrome).
+Run `node scripts/m4test.mjs`, `dominiontest.mjs`, and `p2ptest.mjs` for the
+integration tests (all need the dev server and Chrome).
+
+## Deploy
+
+`npm run build` emits a fully static `dist/` (relative paths — hostable from
+any static file server). A GitHub Pages workflow ships in
+`.github/workflows/deploy.yml`: push to a GitHub repo, enable Pages
+(Settings → Pages → Source: GitHub Actions), and every push to `main`
+deploys.

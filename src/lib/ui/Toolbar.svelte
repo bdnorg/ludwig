@@ -7,10 +7,14 @@
     onAddMenu,
     onImport,
     onExport,
+    onExportTemplate,
+    onUndo,
   }: {
     onAddMenu: (e: MouseEvent) => void;
     onImport: (file: File) => void;
     onExport: () => void;
+    onExportTemplate: () => void;
+    onUndo: () => void;
   } = $props();
 
   let copied = $state(false);
@@ -36,8 +40,19 @@
 
   <span class="sep"></span>
   <button class="primary" onclick={onAddMenu}>+ add to table</button>
+  <button
+    class="tinybtn"
+    onclick={onUndo}
+    disabled={table.undoDepth === 0}
+    title="undo my last action (⌘Z)"
+  >
+    ↩ undo
+  </button>
 
   <span class="spacer"></span>
+  <button class="tinybtn" onclick={onExportTemplate} title="export without hands, for reuse">
+    save template
+  </button>
   <button class="tinybtn" onclick={onExport}>export</button>
   <button class="tinybtn" onclick={() => fileInput.click()}>import</button>
   <input

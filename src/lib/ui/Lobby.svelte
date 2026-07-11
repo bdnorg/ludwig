@@ -1,9 +1,11 @@
 <script lang="ts">
   import { newRoomCode } from '../roomcode';
   import { loadPlayer, savePlayer } from '../state/player';
+  import { TEMPLATES, requestTemplate, type TemplateId } from '../state/templates';
 
   let player = $state(loadPlayer());
   let joinCode = $state('');
+  let template = $state<TemplateId>('sandbox');
 
   function persistName() {
     savePlayer($state.snapshot(player));
@@ -11,6 +13,7 @@
 
   function createTable() {
     persistName();
+    requestTemplate(template);
     location.hash = `#/t/${newRoomCode()}`;
   }
 
@@ -31,6 +34,15 @@
     Your name
     <input placeholder="e.g. Beth" bind:value={player.name} onchange={persistName} maxlength="24" />
   </label>
+
+  <div class="gallery">
+    {#each TEMPLATES as t (t.id)}
+      <button class="tmpl" class:selected={template === t.id} onclick={() => (template = t.id)}>
+        <strong>{t.name}</strong>
+        <span>{t.blurb}</span>
+      </button>
+    {/each}
+  </div>
 
   <button class="primary" onclick={createTable} disabled={!player.name.trim()}>
     Start a new table
@@ -75,5 +87,25 @@
     display: flex;
     gap: 0.5rem;
     align-items: flex-end;
+  }
+  .gallery {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .tmpl {
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.55rem 0.8rem;
+  }
+  .tmpl span {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .tmpl.selected {
+    border-color: var(--accent);
+    outline: 1px solid var(--accent);
   }
 </style>

@@ -22,11 +22,13 @@ const state = () => page.evaluate((room) => JSON.parse(localStorage.getItem(`lud
 const find = (s, kind) => Object.values(s.entities).find((e) => e.kind === kind);
 const ok = (cond, msg) => console.log(`${cond ? 'PASS' : 'FAIL'}: ${msg}`);
 
-async function drag(from, to) {
+async function drag(from, to, { alt = false } = {}) {
+  if (alt) await page.keyboard.down('Alt');
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   await page.mouse.move(to.x, to.y, { steps: 6 });
   await page.mouse.up();
+  if (alt) await page.keyboard.up('Alt');
 }
 
 /** spawn from the palette, then drag the new entity's body to (tx, ty) */
@@ -38,6 +40,7 @@ async function spawnAt(label, kind, tx, ty, grab = { dx: 10, dy: 10 }) {
   await drag(
     { x: e.pos.x + grab.dx, y: e.pos.y + grab.dy + TOOLBAR },
     { x: tx + grab.dx, y: ty + grab.dy + TOOLBAR },
+    { alt: kind === 'deck' }, // plain deck drag pulls the top card; Alt moves the pile
   );
   await settle();
   return find(await state(), kind);
@@ -145,6 +148,27 @@ await settle();
 s = await state();
 card = Object.values(s.entities).find((e) => e.kind === 'card' && e.parent === null);
 ok(card.state.faceUp === true, 'moving within the zone does not re-flip the card');
+
+// M5: plain-dragging a deck pulls its top card (face down from a down deck)
+const cardsBefore = Object.values(s.entities).filter((e) => e.kind === 'card' && e.parent === null).length;
+await drag({ x: deck.pos.x + 36, y: deck.pos.y + 50 + TOOLBAR }, { x: 500, y: 400 + TOOLBAR });
+await settle();
+s = await state();
+const loose = Object.values(s.entities).filter((e) => e.kind === 'card' && e.parent === null);
+const pulled = loose.find((c) => Math.abs(c.pos.x + 36 - 500) < 20);
+ok(loose.length === cardsBefore + 1 && pulled && pulled.state.faceUp === false, 'deck drag pulled top card, face down');
+
+// M5: undo returns it to the deck
+const deckCount = () => page.evaluate(() => document.querySelector('.count')?.textContent);
+const before = await deckCount();
+await page.click('.toolbar button:has-text("undo")');
+await settle();
+s = await state();
+const looseAfter = Object.values(s.entities).filter((e) => e.kind === 'card' && e.parent === null);
+ok(
+  looseAfter.length === cardsBefore && Number(await deckCount()) === Number(before) + 1,
+  `undo returned the pulled card to the deck (${before} → ${await deckCount()})`,
+);
 
 await browser.close();
 console.log('DONE');
