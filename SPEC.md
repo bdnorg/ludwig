@@ -370,3 +370,33 @@ A **gamebox** is a JSON package of definitions, not state:
 - **M9 — Gamebox:** package format, finite supplies, reference panel, game
   mat + named instances in lobby, **Settlers of Catan** as the proving
   gamebox (slot-graph board, finite per-color pieces, resource/dev stacks).
+
+## 15. Design principles, second round (2026-07, from playtest feedback)
+
+1. **Kinds are rendering primitives; behavior is configuration.** Before
+   adding a kind or a special case, express it as config on an existing
+   kind. Standing violations to remove: hands as hidden `docked` mats, the
+   template exporter's strip-the-hands hack, and the table root not being a
+   mat (it must be right-clickable: color, grid, entry rules).
+2. **Public by default; privacy is opt-in mat config.** A private mat has
+   owner(s) plus a *non-owner presentation*: `backs` | `count` | `nothing`
+   — a preset layer over the faces/count/existence spectrum (§10), which
+   remains underneath for gamebox authors.
+3. **No chrome-only objects.** Chrome (hand tray, roster) renders *views of
+   entities*; it never owns objects. A hand is an ordinary private mat,
+   visible to everyone on the table (as its non-owner presentation); the
+   tray is a local pinned view of it. Pinning/docking is a per-viewer view
+   preference, not entity state.
+4. **Templates are ordinary saves.** Save before dealing; no special
+   stripping. (Supersedes the §13 note on template export.)
+5. **Repeatable motions are configuration.** Mat groups ("hands",
+   "supply") + parameterized macro actions ("deal 5 to hands", "gather
+   from play areas", "reset to start") defined in templates/gameboxes,
+   surfaced through the §12 registry (palette, keys, hover).
+6. **Every gesture needs a visible affordance.** If a modifier or sequence
+   exists, something on screen must teach it (hints, tooltips, help page).
+   A feature users can't find is a bug.
+7. **Player identities are a per-browser roster.** The lobby offers a
+   dropdown of this browser's known players (default: last used) plus
+   "new player"; the active identity is per-tab, so multiple tabs can sit
+   at the same table as different players.

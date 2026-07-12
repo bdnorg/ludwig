@@ -113,3 +113,33 @@ gamebox; keyboard v1 = palette + core verbs + auto mat letters.
   instances ("my tables" in lobby).
 - Settlers of Catan gamebox: slot-graph board (hex/vertex/edge slots),
   finite per-color pieces, resource/dev stacks, robber, number tokens.
+
+---
+
+# v3 milestones (playtest feedback, 2026-07 — see SPEC §15)
+
+## M10 — Paper cuts
+- Per-browser player roster + lobby dropdown (default last used); per-tab
+  active identity → multiple tabs join as different players.
+- Hover buttons: no gap, survive being hovered, ~250ms grace.
+- Reorder cards within the hand tray by dragging.
+- Bring-to-front / send-to-back actions (keys `]` / `[`).
+- Notes: resize handle + color choice; Catan road snap fix (halfSize must
+  respect bar shape 0.3× height); browser title `ludwig – <table name>`;
+  stack-gesture hint (drag = take one · ⌥/⌘ = move pile).
+
+## M11 — Everything is a mat
+- Root table mat: right-click felt → color, square/hex grid, entry rules.
+- Hands = ordinary private mats, on-table, positioning:arbitrary; tray =
+  my pinned local view; remove `docked` special-casing and the template
+  hand-stripping exporter.
+- Privacy presets (backs/count/nothing) over the visibility spectrum.
+- One "Mat settings…" dialog (label, color, placement incl. hex grid,
+  faceDefault, privacy) replacing scattered menu items.
+- Annotations: `annotation` text on any entity (📝 badge + menu editor).
+
+## M12 — Groups, macros, front door
+- Mat groups; template-defined macro actions ("deal N to <group>",
+  "gather from <group>", "reset") in the action registry.
+- Lobby: help/instructions page, import-template button.
+- Gamebox quick-action strip.
