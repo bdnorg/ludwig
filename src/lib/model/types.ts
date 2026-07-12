@@ -115,7 +115,11 @@ export type TokenEntity = Base<
   { count: number } // a stack of identical pieces; 1 = a single token
 >;
 
-export type NoteEntity = Base<'note', { color: string }, { text: string }>;
+export type NoteEntity = Base<
+  'note',
+  { color: string; w?: number; h?: number }, // size optional: default 140×90
+  { text: string }
+>;
 
 export type CardEntity = Base<
   'card',

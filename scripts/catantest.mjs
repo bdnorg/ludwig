@@ -59,12 +59,14 @@ const placedRoad = Object.values(s.entities).find(
 const stackAfter = Object.values(s.entities).find((e) => e.id === roadStack.id);
 ok(!!placedRoad, 'dragging the road stack pulled ONE road onto the board');
 ok(stackAfter.state.count === 14, `reserve stack down to 14 (got ${stackAfter.state.count})`);
-const half = placedRoad.config.size / 2;
+// bar tokens render 0.3× as tall as wide — the snap centers on that shape
+const rhw = placedRoad.config.size / 2;
+const rhh = Math.round(placedRoad.config.size * 0.3) / 2;
 const onEdge = board.config.placement.slots.some(
   (sl) =>
     sl.accepts?.includes('road') &&
-    Math.abs(sl.x - (placedRoad.pos.x + half)) < 1 &&
-    Math.abs(sl.y - (placedRoad.pos.y + half)) < 1 &&
+    Math.abs(sl.x - (placedRoad.pos.x + rhw)) < 1 &&
+    Math.abs(sl.y - (placedRoad.pos.y + rhh)) < 1 &&
     (sl.rot ?? 0) === placedRoad.pos.rot,
 );
 ok(onEdge, `road snapped to an edge slot with rotation ${placedRoad.pos.rot}°`);

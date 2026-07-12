@@ -1,9 +1,12 @@
 // Two-peer P2P sync test: two isolated Chrome contexts join the same ludwig
 // room over real Nostr relays and we assert state converges.
+// Set LUDWIG_URL to smoke-test a deployed site, e.g.
+//   LUDWIG_URL=https://bdnorg.github.io/ludwig/ node scripts/p2ptest.mjs
 import { chromium } from 'playwright-core';
 
+const BASE = process.env.LUDWIG_URL ?? 'http://localhost:5173/';
 const ROOM = 'test-p2p-' + Math.random().toString(36).slice(2, 8);
-const URL = `http://localhost:5173/#/t/${ROOM}`;
+const URL = `${BASE}#/t/${ROOM}`;
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 
@@ -13,7 +16,7 @@ async function makePeer(name) {
   page.on('console', (m) => {
     if (m.type() === 'error') console.log(`[${name} console.error]`, m.text());
   });
-  await page.goto('http://localhost:5173/');
+  await page.goto(BASE);
   await page.evaluate((n) => {
     localStorage.setItem(
       'ludwig:player',

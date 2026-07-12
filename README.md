@@ -26,7 +26,9 @@ node scripts/p2ptest.mjs   # 2-browser P2P integration test (needs dev server + 
 
 Open the app, enter a name, pick a template (sandbox, 52-card deck,
 Dominion, or Settlers of Catan), start a table, and send the invite link to
-friends. Saved tables reappear under "My tables" in the lobby — rename,
+friends. The lobby remembers every player this browser has used — pick one
+from the "Playing as" dropdown (each tab can sit at the table as a
+different player). Saved tables reappear under "My tables" in the lobby — rename,
 reopen, or delete them there. Use
 **+ add to table** to spawn decks, chips, dice, counters, scoreboards,
 timers, zones, and notes — or import your own card set / saved template
@@ -42,6 +44,9 @@ timers, zones, and notes — or import your own card set / saved template
 | Draw a card to your hand | double-click a deck |
 | Flip a card | double-click it |
 | Play from hand | drag out of the tray (⇧ plays face down) |
+| Reorder your hand | drag a card sideways within the tray |
+| Bring to front / send to back | ] / [ |
+| Resize a note / pick its color | drag its corner / right-click |
 | Return a card to a deck | drop it on the deck |
 | Shuffle, deal, search… | right-click a deck, or use its hover buttons |
 | Command palette | Space (actions for whatever you're pointing at) |

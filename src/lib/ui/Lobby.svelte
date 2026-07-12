@@ -1,13 +1,22 @@
 <script lang="ts">
   import { newRoomCode } from '../roomcode';
-  import { loadPlayer, savePlayer } from '../state/player';
+  import { listPlayers, loadPlayer, newPlayer, savePlayer } from '../state/player';
   import { deleteTable, listTables, renameTable } from '../state/persist';
   import { TEMPLATES, requestTemplate, type TemplateId } from '../state/templates';
 
+  let roster = $state(listPlayers());
   let player = $state(loadPlayer());
   let joinCode = $state('');
   let template = $state<TemplateId>('sandbox');
   let tables = $state(listTables());
+
+  function pickPlayer(id: string) {
+    const p = id === 'new' ? newPlayer() : roster.find((r) => r.id === id);
+    if (!p) return;
+    player = { ...p };
+    savePlayer($state.snapshot(player));
+    roster = listPlayers();
+  }
 
   function ago(t: number): string {
     if (!t) return '';
@@ -35,6 +44,7 @@
 
   function persistName() {
     savePlayer($state.snapshot(player));
+    roster = listPlayers();
   }
 
   function createTable() {
@@ -56,10 +66,27 @@
   <h1>ludwig</h1>
   <p class="tag">a table for playing games — bring your own rules</p>
 
-  <label>
-    Your name
-    <input placeholder="e.g. Beth" bind:value={player.name} onchange={persistName} maxlength="24" />
-  </label>
+  <div class="who">
+    {#if roster.filter((p) => p.name).length > 0}
+      <label>
+        Playing as
+        <select
+          value={player.id}
+          onchange={(e) => pickPlayer(e.currentTarget.value)}
+          title="this tab's identity — other tabs can play as someone else"
+        >
+          {#each roster as p (p.id)}
+            <option value={p.id}>{p.name || '(unnamed)'}</option>
+          {/each}
+          <option value="new">+ new player</option>
+        </select>
+      </label>
+    {/if}
+    <label>
+      Your name
+      <input placeholder="e.g. Beth" bind:value={player.name} onchange={persistName} maxlength="24" />
+    </label>
+  </div>
 
   <div class="gallery">
     {#each TEMPLATES as t (t.id)}
@@ -129,6 +156,13 @@
     display: flex;
     gap: 0.5rem;
     align-items: flex-end;
+  }
+  .who {
+    display: flex;
+    gap: 0.5rem;
+  }
+  select {
+    padding: 0.35rem 0.4rem;
   }
   .gallery {
     display: flex;

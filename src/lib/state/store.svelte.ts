@@ -14,7 +14,7 @@ import {
 import type { OpCtx } from '../model/ops';
 import { handIdFor, makeMat, matPresets } from '../model/mats';
 import { newId } from '../model/types';
-import { loadPlayer } from './player';
+import { bindTab, loadPlayer } from './player';
 import { loadTable, saveTable } from './persist';
 
 export interface NetLink {
@@ -64,7 +64,8 @@ export class TableStore implements OpCtx {
   undoDepth = $state(0);
 
   init(room: string): void {
-    this.me = loadPlayer(); // pick up lobby edits (name) made after module load
+    this.me = loadPlayer(); // pick up lobby edits (name/identity) made after module load
+    bindTab(this.me); // sitting down pins this tab to the identity (SPEC §15.7)
     this.room = room;
     this.state = loadTable(room);
     this.clock = maxClock(this.state);
@@ -221,6 +222,12 @@ export class TableStore implements OpCtx {
   maxZ(): number {
     let z = 0;
     for (const e of Object.values(this.state.entities)) z = Math.max(z, e.pos.z);
+    return z;
+  }
+
+  minZ(): number {
+    let z = 0;
+    for (const e of Object.values(this.state.entities)) z = Math.min(z, e.pos.z);
     return z;
   }
 

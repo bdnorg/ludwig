@@ -44,11 +44,15 @@ function pluckFromMat(ctx: OpCtx, item: Entity): Mutation[] {
   return [put(ctx, m)];
 }
 
-/** Half-extent of an item, for centering it on a slot. */
-function halfSize(item?: Entity): { hw: number; hh: number } {
+/** Half-extent of an item, for centering it on a slot. Bar tokens (roads)
+ *  render 0.3× as tall as they are wide, so their vertical half differs. */
+export function halfSize(item?: Entity): { hw: number; hh: number } {
   if (!item) return { hw: 0, hh: 0 };
   if (item.kind === 'card') return { hw: item.config.w / 2, hh: item.config.h / 2 };
-  if (item.kind === 'token') return { hw: item.config.size / 2, hh: item.config.size / 2 };
+  if (item.kind === 'token') {
+    const hw = item.config.size / 2;
+    return { hw, hh: item.config.shape === 'bar' ? Math.round(item.config.size * 0.3) / 2 : hw };
+  }
   return { hw: 0, hh: 0 };
 }
 
@@ -127,6 +131,18 @@ export function moveToTable(ctx: OpCtx, item: Entity, pos: Pos, faceUp?: boolean
   it.pos = pos;
   if (it.kind === 'card' && faceUp !== undefined) it.state.faceUp = faceUp;
   return [...muts, put(ctx, it)];
+}
+
+/** Move an item already in `mat` to a new index in its order (tray reorder).
+ *  Index is in matItems order (0 = top of a stack, leftmost of a fan). */
+export function reorderInMat(ctx: OpCtx, mat: MatEntity, item: Entity, index: number): Mutation[] {
+  const ids = matItems(ctx.state, mat)
+    .map((e) => e.id)
+    .filter((id) => id !== item.id);
+  ids.splice(Math.max(0, Math.min(index, ids.length)), 0, item.id);
+  const m = ctx.clone(mat);
+  m.state.order = ids;
+  return [put(ctx, m)];
 }
 
 export function shuffleMat(ctx: OpCtx, mat: MatEntity): Mutation[] {

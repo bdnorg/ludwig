@@ -19,7 +19,7 @@
   import { catanTable } from '../model/catan';
   import { table } from '../state/store.svelte';
   import { connect } from '../net/room';
-  import { exportTable, exportTemplate } from '../state/persist';
+  import { exportTable, exportTemplate, loadMeta } from '../state/persist';
   import { applyPendingTemplate } from '../state/templates';
   import { ACTIONS, actionsFor, actionForKey, uiHooks, type UiAction } from './actions';
   import type { MenuItem } from './menu';
@@ -43,7 +43,9 @@
 
   onMount(() => {
     const link = connect(table, room);
+    document.title = `ludwig – ${loadMeta(room).name ?? room}`;
     return () => {
+      document.title = 'ludwig';
       link.leave();
       table.net = null;
     };
@@ -106,6 +108,15 @@
   let hoveredId = $state<string | null>(null);
   let lastClickedId = $state<string | null>(null);
   let lastMouse = { x: 0, y: 0 };
+
+  // leaving an entity clears hover after a grace period, so the pointer can
+  // travel to the hover buttons (which cancel the timer) without losing them
+  let hoverClearTimer: ReturnType<typeof setTimeout> | undefined;
+  function setHover(id: string | null) {
+    clearTimeout(hoverClearTimer);
+    if (id) hoveredId = id;
+    else hoverClearTimer = setTimeout(() => (hoveredId = null), 250);
+  }
 
   /** What the user means right now: hovered entity, else whatever is under
    *  the cursor (hover state can go stale — enter/leave don't re-fire while
@@ -290,6 +301,18 @@
     }
   }
 
+  /** Where in the tray fan a drop at screen-x lands: count the other cards
+   *  whose center is left of the pointer. */
+  function trayInsertIndex(cx: number, excludeId: string): number {
+    let idx = 0;
+    for (const el of document.querySelectorAll<HTMLElement>('.tray .slot')) {
+      if (el.dataset.cardId === excludeId) continue;
+      const r = el.getBoundingClientRect();
+      if (cx > r.left + r.width / 2) idx++;
+    }
+    return idx;
+  }
+
   type DropTarget = { type: 'mat' | 'token'; id: string } | { type: 'tray' };
 
   /** All drop candidates under the point, topmost first — callers pick the
@@ -419,8 +442,10 @@
     const target = dropTargetAt(e.clientX, e.clientY, g.id);
 
     if (target?.type === 'tray') {
-      if (item.parent !== table.myHand().id)
-        table.commit(ops.moveToMat(table, item, table.myHand()));
+      const hand = table.myHand();
+      const idx = trayInsertIndex(e.clientX, g.id);
+      if (item.parent === hand.id) table.commit(ops.reorderInMat(table, hand, item, idx));
+      else table.commit([...ops.moveToMat(table, item, hand), ...ops.reorderInMat(table, hand, item, idx)]);
       return;
     }
     if (target?.type === 'mat') {
@@ -642,6 +667,24 @@
         },
       });
     }
+    if (ent.kind === 'note') {
+      const NOTE_COLORS: Array<[string, string]> = [
+        ['🟡 yellow', '#e7d980'],
+        ['🟢 green', '#b6dc9a'],
+        ['🩷 pink', '#eab6cf'],
+        ['🔵 blue', '#a9cdea'],
+      ];
+      for (const [name, color] of NOTE_COLORS) {
+        if (ent.config.color === color) continue;
+        items.push({
+          label: `Color: ${name}`,
+          run: () =>
+            table.update(ent, (n) => {
+              n.config.color = color;
+            }),
+        });
+      }
+    }
     if (ent.kind === 'counter' || ent.kind === 'scoreboard') {
       items.push({
         label: 'Rename…',
@@ -709,6 +752,16 @@
     const o = table.effectiveOrigin(hoverTarget.parent);
     const pos = table.dragPos[hoverTarget.id] ?? table.effectivePos(hoverTarget);
     return tableToScreen(o.x + pos.x, o.y + pos.y);
+  });
+  // every gesture needs a visible affordance (SPEC §15): teach the stack pull
+  const gestureHint = $derived.by(() => {
+    const t = hoverTarget;
+    if (!t) return null;
+    if (t.kind === 'mat' && t.config.placement.type === 'stack' && matItems(table.state, t).length > 1)
+      return 'drag = take one · ⌥/⌘ drag = move pile';
+    if (t.kind === 'token' && (t.state.count ?? 1) > 1)
+      return 'drag = take one · ⌥/⌘ drag = move stack';
+    return null;
   });
 
   // ---- spawning ----
@@ -918,7 +971,7 @@
     onDouble,
     onMenu,
     onGhostGrab: startGhostDrag,
-    onHover: (id: string | null) => (hoveredId = id),
+    onHover: setHover,
   };
 </script>
 
@@ -978,25 +1031,37 @@
   {/if}
 
   {#if hoverTarget && hoverActions.length > 0 && hoverPos}
-    <div class="hoverbar" style:left="{hoverPos.x}px" style:top="{hoverPos.y - 30}px">
-      {#each hoverActions as a (a.id)}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="hoverbar"
+      style:left="{hoverPos.x}px"
+      style:top="{hoverPos.y}px"
+      onpointerenter={() => clearTimeout(hoverClearTimer)}
+      onpointerleave={() => setHover(null)}
+    >
+      <div class="buttons">
+        {#each hoverActions as a (a.id)}
+          <button
+            title="{a.label}{a.key ? ` (${a.key})` : ''}"
+            onpointerdown={(e) => e.stopPropagation()}
+            onclick={() => runAction(a, hoverTarget)}
+          >
+            {a.icon ?? a.label}
+          </button>
+        {/each}
         <button
-          title="{a.label}{a.key ? ` (${a.key})` : ''}"
+          title="more…"
           onpointerdown={(e) => e.stopPropagation()}
-          onclick={() => runAction(a, hoverTarget)}
+          onclick={(e) => {
+            menu = { x: e.clientX, y: e.clientY, items: menuFor(hoverTarget) };
+          }}
         >
-          {a.icon ?? a.label}
+          ⋯
         </button>
-      {/each}
-      <button
-        title="more…"
-        onpointerdown={(e) => e.stopPropagation()}
-        onclick={(e) => {
-          menu = { x: e.clientX, y: e.clientY, items: menuFor(hoverTarget) };
-        }}
-      >
-        ⋯
-      </button>
+      </div>
+      {#if gestureHint}
+        <div class="gesturehint">{gestureHint}</div>
+      {/if}
     </div>
   {/if}
 
@@ -1065,15 +1130,33 @@
     border-radius: 50%;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
   }
+  /* sits flush against the entity's top edge (no gap to cross) */
   .hoverbar {
     position: fixed;
     z-index: 250001;
+    transform: translateY(-100%);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding-bottom: 0;
+  }
+  .buttons {
     display: flex;
     gap: 2px;
     background: rgba(30, 34, 43, 0.95);
     border: 1px solid #454f60;
     border-radius: 6px;
     padding: 2px;
+  }
+  .gesturehint {
+    order: -1;
+    background: rgba(30, 34, 43, 0.85);
+    border-radius: 5px;
+    padding: 1px 7px;
+    font-size: 0.62rem;
+    color: var(--muted);
+    white-space: nowrap;
+    pointer-events: none;
   }
   .hoverbar button {
     padding: 1px 7px;

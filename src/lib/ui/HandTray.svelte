@@ -29,7 +29,7 @@
   <div class="cards">
     {#each cards as card (card.id)}
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="slot" onpointerdown={(e) => onCardGrab(e, card.id)}>
+      <div class="slot" data-card-id={card.id} onpointerdown={(e) => onCardGrab(e, card.id)}>
         <CardFaceView face={card.config.front} w={card.config.w} h={card.config.h} />
       </div>
     {:else}

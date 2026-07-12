@@ -130,6 +130,22 @@ describe('mat ops', () => {
     expect(fresh<CardEntity>(card.id).pos.x).toBe(200 - 36);
   });
 
+  it('reorderInMat moves an item to the requested index', () => {
+    const hand = makeHand(peer, 'p1');
+    peer.apply(ops.drawTo(peer, deck, hand, 4));
+    const h = fresh<MatEntity>(hand.id);
+    const ids = matItems(peer.state, h).map((e) => e.id);
+    peer.apply(ops.reorderInMat(peer, h, peer.state.entities[ids[3]], 0));
+    expect(matItems(peer.state, fresh<MatEntity>(hand.id)).map((e) => e.id)).toEqual([
+      ids[3], ids[0], ids[1], ids[2],
+    ]);
+    // out-of-range indexes clamp
+    peer.apply(ops.reorderInMat(peer, fresh<MatEntity>(hand.id), peer.state.entities[ids[3]], 99));
+    expect(matItems(peer.state, fresh<MatEntity>(hand.id)).map((e) => e.id)).toEqual([
+      ids[0], ids[1], ids[2], ids[3],
+    ]);
+  });
+
   it('deleting a mat deletes its contents recursively', () => {
     peer.apply(ops.deleteEntity(peer, fresh<MatEntity>(deck.id)));
     expect(Object.values(peer.state.entities).filter((e) => e.kind === 'card')).toHaveLength(0);

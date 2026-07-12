@@ -143,6 +143,26 @@ export const ACTIONS: UiAction[] = [
     run: (e) => table.commit(ops.gatherTableCards(table, e as MatEntity)),
   },
   {
+    id: 'front',
+    label: 'Bring to front',
+    key: ']',
+    appliesTo: (e) => !e.locked,
+    run: (e) =>
+      table.update(e, (d) => {
+        d.pos.z = table.maxZ() + 1;
+      }),
+  },
+  {
+    id: 'back',
+    label: 'Send to back',
+    key: '[',
+    appliesTo: (e) => !e.locked,
+    run: (e) =>
+      table.update(e, (d) => {
+        d.pos.z = table.minZ() - 1;
+      }),
+  },
+  {
     id: 'lock',
     label: 'Lock / unlock',
     key: 'l',

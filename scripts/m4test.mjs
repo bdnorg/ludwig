@@ -249,5 +249,73 @@ ok(
   `visibility change logged: "${logTexts[0] ?? ''}"`,
 );
 
+// M10: browser title carries the table name
+const title = await page.title();
+ok(title === `ludwig – ${ROOM}`, `browser title is "${title}"`);
+
+// M10: hovering a stack shows the gesture hint alongside the hover buttons
+await page.mouse.move(0, 0);
+await page.waitForTimeout(400);
+await page.mouse.move(deck.pos.x + 36, deck.pos.y + 50 + TOOLBAR);
+await page.waitForTimeout(200);
+const hint = await page.evaluate(() => document.querySelector('.gesturehint')?.textContent);
+ok(hint?.includes('take one'), `stack gesture hint shown: "${hint}"`);
+
+// M10: hover buttons survive the pointer moving onto them (250ms grace)
+const barBtn = await page.evaluate(() => {
+  const b = document.querySelector('.hoverbar .buttons button');
+  const r = b?.getBoundingClientRect();
+  return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+});
+await page.mouse.move(barBtn.x, barBtn.y, { steps: 4 });
+await page.waitForTimeout(400);
+ok(
+  await page.evaluate(() => !!document.querySelector('.hoverbar')),
+  'hover buttons still present with the pointer on them',
+);
+
+// M10: ] brings to front, [ sends to back
+s = await state();
+const chipNow = find(s, 'token');
+const zBefore = chipNow.pos.z;
+await page.mouse.move(chipNow.pos.x + 17, chipNow.pos.y + 17 + TOOLBAR);
+await page.keyboard.press(']');
+await settle();
+s = await state();
+ok(find(s, 'token').pos.z > zBefore, `] raised z (${zBefore} → ${find(s, 'token').pos.z})`);
+await page.keyboard.press('[');
+await settle();
+s = await state();
+ok(find(s, 'token').pos.z < zBefore, `[ lowered z below all (${find(s, 'token').pos.z})`);
+
+// M10: reorder within the hand tray by dragging a card to the other end
+await page.mouse.move(deck.pos.x + 36, deck.pos.y + 50 + TOOLBAR);
+await page.keyboard.press('d'); // a second card, so there is an order to change
+await settle();
+s = await state();
+const handMat = Object.values(s.entities).find(
+  (e) => e.kind === 'mat' && e.config.ownerId === 'p_tester',
+);
+const orderBefore = [...handMat.state.order];
+ok(orderBefore.length === 2, `hand holds 2 cards (${orderBefore.length})`);
+const slotRects = await page.$$eval('.tray .slot', (els) =>
+  els.map((el) => {
+    const r = el.getBoundingClientRect();
+    return { id: el.dataset.cardId, x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  }),
+);
+const first = slotRects.find((r) => r.id === orderBefore[0]);
+const last = slotRects[slotRects.length - 1];
+await drag({ x: first.x, y: first.y }, { x: last.x + 60, y: last.y });
+await settle();
+s = await state();
+const orderAfter = Object.values(s.entities).find(
+  (e) => e.kind === 'mat' && e.config.ownerId === 'p_tester',
+).state.order;
+ok(
+  orderAfter[orderAfter.length - 1] === orderBefore[0] && orderAfter.length === 2,
+  `tray drag reordered the hand (${orderBefore.join()} → ${orderAfter.join()})`,
+);
+
 await browser.close();
 console.log('DONE');

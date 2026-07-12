@@ -86,12 +86,14 @@ describe('catan template', () => {
         (e.config.tags ?? []).includes('road') &&
         e.state.count === 1,
     )!;
-    const half = placed.config.size / 2;
+    // bars render 0.3× as tall as wide; the snap centers on that shape
+    const hw = placed.config.size / 2;
+    const hh = Math.round(placed.config.size * 0.3) / 2;
     const snapped = board.config.placement.slots!.some(
       (s) =>
         s.accepts?.includes('road') &&
-        Math.abs(s.x - (placed.pos.x + half)) < 0.6 &&
-        Math.abs(s.y - (placed.pos.y + half)) < 0.6 &&
+        Math.abs(s.x - (placed.pos.x + hw)) < 0.6 &&
+        Math.abs(s.y - (placed.pos.y + hh)) < 0.6 &&
         (s.rot ?? 0) === placed.pos.rot,
     );
     expect(snapped).toBe(true);
