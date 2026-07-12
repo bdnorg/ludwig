@@ -17,6 +17,7 @@ import type {
   VisibilityRule,
 } from './types';
 import { newId } from './types';
+import { generateSlots } from './boards';
 import type { TableState } from './reducers';
 
 /** Items actually in `mat`, in order-list order; strays appended (stable). */
@@ -169,6 +170,15 @@ export interface MatOpts {
 }
 
 export function makeMat(version: Version, pos: Pos, o: MatOpts): MatEntity {
+  // authoring shorthand: expand a declared slot graph into concrete slots
+  // (v4 §7) so peers, saves, and ops only ever see the list
+  let placement = o.placement ?? { type: 'stack' as const };
+  let size = o.size ?? null;
+  if (placement.type === 'slots' && placement.generate && !placement.slots?.length) {
+    const gen = generateSlots(placement.generate);
+    placement = { ...placement, slots: gen.slots };
+    size ??= { w: Math.round(gen.w), h: Math.round(gen.h) };
+  }
   return {
     id: o.id ?? newId('mat'),
     kind: 'mat',
@@ -181,7 +191,7 @@ export function makeMat(version: Version, pos: Pos, o: MatOpts): MatEntity {
       label: o.label,
       letter: null,
       ownerId: o.ownerId ?? null,
-      placement: o.placement ?? { type: 'stack' },
+      placement,
       faceDefault: o.faceDefault ?? 'keep',
       visibility: {
         ...(o.privacy ? privacyVisibility(o.privacy) : VIS_PUBLIC),
@@ -190,7 +200,7 @@ export function makeMat(version: Version, pos: Pos, o: MatOpts): MatEntity {
       privacy: o.privacy,
       image: o.image ?? null,
       color: o.color ?? null,
-      size: o.size ?? null,
+      size,
       groups: o.groups,
       stackKinds: o.stackKinds,
       showSum: o.showSum,

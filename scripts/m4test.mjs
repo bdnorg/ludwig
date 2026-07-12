@@ -514,6 +514,44 @@ await settle();
 s = await state();
 ok(s.entities[zcard.id].pos.x % 40 !== 0, `alt-drag skipped the grid snap (x=${s.entities[zcard.id].pos.x})`);
 
+// ---- M15: infinite supply — pulls clone, returns vanish ----
+s = await state();
+const nBefore = Object.values(s.entities).find((e) => e.id === deck.id).state.order.length;
+const cardsBefore = Object.values(s.entities).filter((e) => e.kind === 'card').length;
+await page.mouse.click(deck.pos.x + 36, deck.pos.y + 50 + TOOLBAR, { button: 'right' });
+await page.click('.menu button:has-text("Mat settings")');
+await page.selectOption('[data-field="supply"]', 'infinite');
+await page.click('.dialog button:has-text("Save")');
+await settle();
+const infBadge = await page.evaluate(
+  (id) => document.querySelector(`[data-entity-id="${id}"] .count`)?.textContent,
+  deck.id,
+);
+ok(infBadge === '∞', `supply badge shows ∞ (${infBadge})`);
+await drag({ x: deck.pos.x + 36, y: deck.pos.y + 50 + TOOLBAR }, { x: 480, y: 300 + TOOLBAR });
+await settle();
+s = await state();
+const nAfter = Object.values(s.entities).find((e) => e.id === deck.id).state.order.length;
+const minted = Object.values(s.entities).filter((e) => e.kind === 'card').length - cardsBefore;
+ok(
+  nAfter === nBefore && minted === 1,
+  `pull minted a clone, pile untouched (deck ${nBefore}→${nAfter}, +${minted} card)`,
+);
+const clone = Object.values(s.entities).find(
+  (e) => e.kind === 'card' && e.parent === null && Math.abs(e.pos.x + 36 - 480) < 30,
+);
+await drag(
+  { x: clone.pos.x + 36, y: clone.pos.y + 50 + TOOLBAR },
+  { x: deck.pos.x + 36, y: deck.pos.y + 50 + TOOLBAR },
+);
+await settle();
+s = await state();
+ok(
+  !s.entities[clone.id] &&
+    Object.values(s.entities).filter((e) => e.kind === 'card').length === cardsBefore,
+  'returning to the supply destroyed the card',
+);
+
 // shift-drag pans the felt (kept out of the way until the end: it moves the
 // coordinate frame)
 const viewBefore = await page.evaluate(

@@ -2,15 +2,34 @@ import { describe, expect, it } from 'vitest';
 import type { MatEntity, TokenEntity } from './types';
 import { matItems } from './mats';
 import * as ops from './ops';
-import { boardGeometry, catanTable } from './catan';
+import { catanTable, catanMacros } from './catan';
+import { generateSlots, hexGeometry } from './boards';
+import { runMacro } from './macros';
 import { TestPeer, token } from './testutil';
 
-describe('board geometry', () => {
-  it('has 19 hexes, 54 vertices, 72 edges', () => {
-    const g = boardGeometry(500, 400);
+describe('board geometry (v4 §7 generators)', () => {
+  it('radius-2 hexgrid has 19 hexes, 54 vertices, 72 edges', () => {
+    const g = hexGeometry(2, 88);
     expect(g.hexes).toHaveLength(19);
     expect(g.vertices).toHaveLength(54);
     expect(g.edges).toHaveLength(72);
+  });
+
+  it('generateSlots expands classes into accept lists', () => {
+    const { slots } = generateSlots({
+      kind: 'hexgrid',
+      radius: 1,
+      size: 60,
+      classes: { cell: ['tile'], edge: ['road'] }, // no vertices requested
+    });
+    expect(slots.filter((s) => s.accepts?.includes('tile'))).toHaveLength(7);
+    expect(slots.filter((s) => s.accepts?.includes('road'))).toHaveLength(30);
+    expect(slots.some((s) => s.id.startsWith('v-'))).toBe(false);
+  });
+
+  it('squaregrid generates rows × cols cells', () => {
+    const { slots } = generateSlots({ kind: 'squaregrid', rows: 3, cols: 4, size: 50 });
+    expect(slots).toHaveLength(12);
   });
 });
 
@@ -26,18 +45,53 @@ describe('catan template', () => {
     expect(board.config.placement.slots).toHaveLength(19 + 54 + 72);
   });
 
-  it('lays 19 locked tiles, 18 chits, and the robber on the desert', () => {
+  it('lays 19 tiles, 18 chits, and the robber on the desert', () => {
     const tiles = all().filter(
       (e): e is TokenEntity => e.kind === 'token' && (e.config.tags ?? []).includes('tile'),
     );
     expect(tiles).toHaveLength(19);
-    expect(tiles.every((t) => t.locked && t.parent === board.id)).toBe(true);
+    expect(tiles.every((t) => t.parent === board.id)).toBe(true);
     const chits = all().filter(
       (e): e is TokenEntity => e.kind === 'token' && (e.config.tags ?? []).includes('chit'),
     );
-    expect(chits).toHaveLength(19); // 18 numbers + robber
-    const robber = chits.find((c) => !c.locked)!;
+    expect(chits).toHaveLength(18); // numbers; the robber has its own tag
+    const robber = all().find(
+      (e): e is TokenEntity => e.kind === 'token' && (e.config.tags ?? []).includes('robber'),
+    )!;
     expect(robber.config.label).toBe('☠');
+  });
+
+  it('"Random island" re-lays every tile and chit onto cells (v4 §7)', () => {
+    const peer2 = new TestPeer('b');
+    peer2.apply(catanTable(peer2, { x: 0, y: 0, z: 1, rot: 0 }));
+    const b2 = Object.values(peer2.state.entities).find(
+      (e): e is MatEntity => e.kind === 'mat' && e.config.label === 'Island',
+    )!;
+    const [macro] = catanMacros();
+    peer2.apply(runMacro(peer2, structuredClone(peer2.state), macro, []));
+    const cells = b2.config.placement.slots!.filter((s) => s.accepts?.includes('tile'));
+    const tiles = Object.values(peer2.state.entities).filter(
+      (e): e is TokenEntity =>
+        e.kind === 'token' && (e.config.tags ?? []).includes('tile') && e.parent === b2.id,
+    );
+    expect(tiles).toHaveLength(19);
+    // every tile centered on some cell slot
+    for (const t of tiles) {
+      const cx = t.pos.x + t.config.size / 2;
+      const cy = t.pos.y + t.config.size / 2;
+      expect(cells.some((s) => Math.abs(s.x - cx) < 1 && Math.abs(s.y - cy) < 1)).toBe(true);
+    }
+    // chits landed on cells too (18 of 19; one cell keeps only its tile)
+    const chits = Object.values(peer2.state.entities).filter(
+      (e): e is TokenEntity =>
+        e.kind === 'token' && (e.config.tags ?? []).includes('chit') && e.parent === b2.id,
+    );
+    expect(chits).toHaveLength(18);
+    // staging stacks end empty
+    const tilesMat = Object.values(peer2.state.entities).find(
+      (e): e is MatEntity => e.kind === 'mat' && e.config.label === 'Tiles',
+    )!;
+    expect(matItems(peer2.state, tilesMat)).toHaveLength(0);
   });
 
   it('finite reserves: 5 settlements, 4 cities, 15 roads per color', () => {

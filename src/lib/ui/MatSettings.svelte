@@ -43,6 +43,8 @@
   );
   // svelte-ignore state_referenced_locally
   let showSum = $state(mat.config.showSum ?? '');
+  // svelte-ignore state_referenced_locally
+  let supply = $state(mat.config.supply ?? 'normal');
 
   const COLORS: Array<[string, string]> = [
     ['none', ''],
@@ -89,6 +91,7 @@
           });
         m.config.buttons = btns.length > 0 ? btns : undefined;
         m.config.showSum = showSum.trim() || undefined;
+        m.config.supply = supply === 'infinite' ? 'infinite' : undefined;
       }
       if (changedPrivacy) {
         m.config.privacy = privacy;
@@ -163,6 +166,13 @@
   </label>
 
   {#if !isRoot}
+    <label>
+      Supply
+      <select data-field="supply" bind:value={supply}>
+        <option value="normal">normal — items are finite</option>
+        <option value="infinite">infinite — pulls make copies, returns vanish</option>
+      </select>
+    </label>
     <label>
       Buttons (action ids, e.g. draw, shuffle, roll-all-dice, flip-all-cards)
       <input data-field="buttons" bind:value={buttonsText} placeholder="none" />

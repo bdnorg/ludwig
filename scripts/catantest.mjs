@@ -166,5 +166,25 @@ ok(
   'switching back to shared adopted my placement',
 );
 
+// M15: "Random island" re-lays tiles and chits via shuffle + deal-to-slots
+await page.click('.quickbar button:has-text("Random island")');
+await settle();
+s = await state();
+const cells = board.config.placement.slots.filter((sl) => sl.accepts?.includes('tile'));
+const tilesAfter = Object.values(s.entities).filter(
+  (e) => e.kind === 'token' && (e.config.tags ?? []).includes('tile') && e.parent === board.id,
+);
+ok(
+  tilesAfter.length === 19 &&
+    tilesAfter.every((t) =>
+      cells.some((sl) => Math.abs(sl.x - (t.pos.x + 44)) < 1 && Math.abs(sl.y - (t.pos.y + 44)) < 1),
+    ),
+  'Random island re-laid all 19 tiles onto cells',
+);
+const chitsAfter = Object.values(s.entities).filter(
+  (e) => e.kind === 'token' && (e.config.tags ?? []).includes('chit') && e.parent === board.id,
+);
+ok(chitsAfter.length === 18, `18 chits back on the board (got ${chitsAfter.length})`);
+
 await browser.close();
 console.log('DONE');

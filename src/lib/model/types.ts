@@ -69,10 +69,27 @@ export interface SlotDef {
   accepts?: string[];
 }
 
+/** Declarative slot graph (v4 §7): expanded into `slots` when the mat is
+ *  created, so peers/saves/ops only ever see the concrete list. */
+export interface SlotGenerate {
+  kind: 'hexgrid' | 'squaregrid';
+  /** hexgrid: rings around the center (2 = the 19-hex Catan island) */
+  radius?: number;
+  /** squaregrid: cell counts */
+  rows?: number;
+  cols?: number;
+  /** cell spacing (hex size / square edge) */
+  size: number;
+  /** `accepts` per slot class; omit a class to skip those slots */
+  classes?: { cell?: string[]; vertex?: string[]; edge?: string[] };
+}
+
 export interface MatPlacement {
   type: 'free' | 'grid' | 'slots' | 'stack' | 'fan';
   grid?: { size: number; hex?: boolean }; // hex: staggered hex-center lattice
   slots?: SlotDef[];
+  /** authoring shorthand; makeMat expands it into `slots` */
+  generate?: SlotGenerate;
 }
 
 /** Non-owner presentation of a private mat (SPEC §15): a preset layer over
@@ -83,14 +100,23 @@ export type MatPrivacy = 'public' | 'backs' | 'count' | 'nothing';
 
 // ---- macros (SPEC §15: repeatable motions are configuration) -------------
 
+/** Item filter for macro steps (v4 §8): all given fields must match. */
+export interface MacroWhere {
+  kind?: EntityKind;
+  title?: string; // card front title
+  tag?: string; // token tag
+}
+
 /** One motion in a macro. `from`/`to` name a mat by label, or a mat GROUP:
  *  'hands' is built in (the connected players' hands); templates tag mats
- *  into other groups via `config.groups`. */
+ *  into other groups via `config.groups`. 'table' means loose on the felt. */
 export interface MacroStep {
-  op: 'deal' | 'gather' | 'shuffle';
-  from?: string; // deal/shuffle: source mat label; gather: group or 'table'
-  to?: string; // deal: target group; gather: target mat label
+  op: 'deal' | 'gather' | 'shuffle' | 'move' | 'flip' | 'deal-to-slots';
+  from?: string; // source mat label; gather/move/flip: group | 'table' | label
+  to?: string; // deal: target group; gather/move/deal-to-slots: mat label
   n?: number; // deal: cards per hand (default 1)
+  face?: 'up' | 'down'; // flip: target face (omit = toggle)
+  where?: MacroWhere; // gather/move/flip: which items
 }
 
 /** A template-defined quick action ("deal 5 to hands", "reset") — carried on
@@ -141,6 +167,9 @@ export type MatEntity = Base<
     /** double-click runs the first entry, ⌥-double-click the second
      *  (v4 §9); falls back to the platform default per kind */
     quickActions?: string[];
+    /** 'infinite' (v4 §6): pulls CLONE the top item, returns DESTROY the
+     *  returned item, and the count badge renders ∞ */
+    supply?: 'normal' | 'infinite';
   },
   {
     /** stack/fan order, index 0 = top; membership authority is child.parent */

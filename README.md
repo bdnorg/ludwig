@@ -65,6 +65,8 @@ timers, zones, and notes — or import your own card set / saved template
 | Edit an item — value, sides, label… | right-click → Item settings… |
 | Chip values & pot totals | chips carry a value; stacks show the sum |
 | Put buttons on a mat | Mat settings… → Buttons (draw, shuffle, roll-all-dice…) |
+| Infinite bank / supply | Mat settings… → Supply: infinite (pulls copy, returns vanish) |
+| Random Catan board | the "Random island" quick action (shuffle + deal-to-slots) |
 | Shrink a mat to its contents | right-click → My view: fit contents |
 | Duplicate anything | right-click → Duplicate |
 | Split a chip stack | right-click → Take 1 / Split stack… |

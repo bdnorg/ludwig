@@ -315,6 +315,92 @@ describe('everything is a mat (SPEC §15)', () => {
     expect([peer.state.entities[card.id].pos.x, peer.state.entities[card.id].pos.y]).toEqual([33, 52]);
   });
 
+  it('infinite supplies clone on pull and destroy on return (v4 §6)', () => {
+    const peer = new TestPeer('a');
+    peer.apply(standardDeck(peer, { x: 0, y: 0, z: 0, rot: 0 }));
+    const deck0 = Object.values(peer.state.entities).find((e) => e.kind === 'mat') as MatEntity;
+    const supply = structuredClone(deck0);
+    supply.config.supply = 'infinite';
+    supply.version = peer.next();
+    peer.apply([{ t: 'put', entity: supply }]);
+    const deck = () => peer.state.entities[deck0.id] as MatEntity;
+
+    // pull to the table: a clone lands, the pile is untouched
+    const top = matItems(peer.state, deck())[0];
+    peer.apply(ops.moveToTable(peer, top, { x: 400, y: 0, z: 9, rot: 0 }, true));
+    expect(matItems(peer.state, deck())).toHaveLength(52);
+    const loose = Object.values(peer.state.entities).filter(
+      (e) => e.kind === 'card' && e.parent === null,
+    );
+    expect(loose).toHaveLength(1);
+    expect(loose[0].id).not.toBe(top.id);
+
+    // drawing mints clones too
+    const hand = makeMat(peer.next(), { x: 0, y: 0, z: 0, rot: 0 }, matPresets.hand('p1'));
+    peer.apply([{ t: 'put', entity: hand }]);
+    peer.apply(ops.drawTo(peer, deck(), peer.state.entities[hand.id] as MatEntity, 3));
+    expect(matItems(peer.state, deck())).toHaveLength(52);
+    expect(matItems(peer.state, peer.state.entities[hand.id] as MatEntity)).toHaveLength(3);
+
+    // returning destroys: the bank absorbs it
+    peer.apply(ops.moveToMat(peer, peer.state.entities[loose[0].id], deck(), { where: 'top' }));
+    expect(peer.state.entities[loose[0].id]).toBeUndefined();
+    expect(matItems(peer.state, deck())).toHaveLength(52);
+  });
+
+  it('deal-to-slots fills empty matching slots; like items block, unlike stack (v4 §7)', () => {
+    const peer = new TestPeer('a');
+    const board = makeMat(peer.next(), { x: 0, y: 0, z: 0, rot: 0 }, {
+      label: 'B',
+      placement: {
+        type: 'slots',
+        slots: [
+          { id: 'a', x: 50, y: 50, accepts: ['tile', 'chit'] },
+          { id: 'b', x: 150, y: 50, accepts: ['tile', 'chit'] },
+        ],
+      },
+    });
+    const pile = makeMat(peer.next(), { x: 400, y: 0, z: 0, rot: 0 }, { label: 'P' });
+    peer.apply([{ t: 'put', entity: board }, { t: 'put', entity: pile }]);
+    const mk = (id: string, tag: string, size: number) => {
+      const t = token(id, 'a', peer.clock + 1);
+      t.parent = pile.id;
+      t.config.tags = [tag];
+      t.config.size = size;
+      peer.apply([{ t: 'put', entity: t }]);
+    };
+    mk('t1', 'tile', 40);
+    mk('t2', 'tile', 40);
+    mk('t3', 'tile', 40); // one more tile than cells
+    peer.apply(
+      ops.dealToSlots(
+        peer,
+        peer.state.entities[pile.id] as MatEntity,
+        peer.state.entities[board.id] as MatEntity,
+      ),
+    );
+    const onBoard = Object.values(peer.state.entities).filter((e) => e.parent === board.id);
+    expect(onBoard).toHaveLength(2); // both cells filled, once each
+    expect(onBoard.every((e) => [30, 130].includes(e.pos.x))).toBe(true); // centered
+    expect(matItems(peer.state, peer.state.entities[pile.id] as MatEntity)).toHaveLength(1);
+
+    // chits still deal onto TILED cells (occupancy is per like-kind)
+    mk('c1', 'chit', 20);
+    mk('c2', 'chit', 20);
+    peer.apply(
+      ops.dealToSlots(
+        peer,
+        peer.state.entities[pile.id] as MatEntity,
+        peer.state.entities[board.id] as MatEntity,
+      ),
+    );
+    const chitsOn = Object.values(peer.state.entities).filter(
+      (e) =>
+        e.parent === board.id && e.kind === 'token' && (e.config.tags ?? []).includes('chit'),
+    );
+    expect(chitsOn).toHaveLength(2);
+  });
+
   it('hex grids snap to the staggered lattice', () => {
     const peer = new TestPeer('a');
     const m = makeMat(peer.next(), { x: 0, y: 0, z: 0, rot: 0 }, {

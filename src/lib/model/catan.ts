@@ -1,13 +1,15 @@
 // Built-in template: Settlers of Catan (base, beginner layout).
-// Proves the slot-graph board: one slots-mat carries hex slots (tiles,
-// robber), vertex slots (settlements/cities), and edge slots (roads, with
-// rotation). Piece supplies are finite by construction — token stacks in
-// per-color reserves hold exactly the box counts. No rules are enforced:
-// players roll, collect, build, and argue like at a real table (SPEC §1).
+// Proves that boards are data (v4 §7): the island is a slots-mat DECLARED
+// as a hexgrid slot graph (cells for tiles/chits/robber, vertices for
+// buildings, edges for roads) and expanded by makeMat. Piece supplies are
+// finite by construction; the "Random island" macro re-lays the board via
+// shuffle + deal-to-slots. No rules are enforced: players roll, collect,
+// build, and argue like at a real table (SPEC §1).
 
-import type { Pos, SlotDef, TokenEntity, Version } from './types';
+import type { MacroDef, Pos, TokenEntity, Version } from './types';
 import type { Mutation } from './reducers';
 import type { OpCtx } from './ops';
+import { hexGeometry } from './boards';
 import { makeMat, matPresets } from './mats';
 import { newId } from './types';
 import { buildCardSet } from './cardsets';
@@ -40,57 +42,6 @@ const COLORS = [
   { name: 'Orange', color: '#d9822b' },
 ];
 
-interface HexGeom {
-  cx: number;
-  cy: number;
-  terrain: Terrain;
-  chit: number | null;
-}
-
-/** Hex centers + the deduplicated vertex/edge slot graph. */
-export function boardGeometry(w: number, h: number) {
-  const x0 = w / 2;
-  const y0 = h / 2;
-  const hexes: HexGeom[] = [];
-  LAYOUT.forEach((row, ri) => {
-    const r = ri - 2;
-    row.forEach(([terrain, chit], ci) => {
-      const q = Math.max(-2, -2 - r) + ci;
-      hexes.push({
-        cx: x0 + S * (q + r / 2),
-        cy: y0 + 0.75 * S * r,
-        terrain,
-        chit,
-      });
-    });
-  });
-
-  const corners = (hx: HexGeom): Array<{ x: number; y: number }> => [
-    { x: hx.cx, y: hx.cy - S / 2 },
-    { x: hx.cx + S / 2, y: hx.cy - S / 4 },
-    { x: hx.cx + S / 2, y: hx.cy + S / 4 },
-    { x: hx.cx, y: hx.cy + S / 2 },
-    { x: hx.cx - S / 2, y: hx.cy + S / 4 },
-    { x: hx.cx - S / 2, y: hx.cy - S / 4 },
-  ];
-
-  const key = (x: number, y: number) => `${Math.round(x)}:${Math.round(y)}`;
-  const vertices = new Map<string, { x: number; y: number }>();
-  const edges = new Map<string, { x: number; y: number; rot: number }>();
-  for (const hx of hexes) {
-    const cs = corners(hx);
-    cs.forEach((c, i) => {
-      vertices.set(key(c.x, c.y), c);
-      const n = cs[(i + 1) % 6];
-      const mx = (c.x + n.x) / 2;
-      const my = (c.y + n.y) / 2;
-      const rot = Math.round((Math.atan2(n.y - c.y, n.x - c.x) * 180) / Math.PI);
-      edges.set(key(mx, my), { x: mx, y: my, rot: ((rot % 180) + 180) % 180 });
-    });
-  }
-  return { hexes, vertices: [...vertices.values()], edges: [...edges.values()] };
-}
-
 function pieceStack(
   version: Version,
   parent: string,
@@ -114,45 +65,50 @@ export function catanTable(ctx: OpCtx, origin: Pos): Mutation[] {
   const muts: Mutation[] = [];
   let z = origin.z;
 
-  // ---- board: one slots-mat with hex/vertex/edge slot classes ----
-  const W = 5 * S + 60;
-  const H = 4 * S + 40;
-  const geo = boardGeometry(W, H);
-  const slots: SlotDef[] = [
-    ...geo.hexes.map((hx, i) => ({ id: `hex-${i}`, x: hx.cx, y: hx.cy, accepts: ['tile', 'chit'] })),
-    ...geo.vertices.map((v, i) => ({ id: `v-${i}`, x: v.x, y: v.y, accepts: ['building'] })),
-    ...geo.edges.map((e, i) => ({ id: `e-${i}`, x: e.x, y: e.y, rot: e.rot, accepts: ['road'] })),
-  ];
+  // ---- board: a DECLARED hexgrid slot graph, expanded by makeMat (v4 §7) ----
+  const geo = hexGeometry(2, S);
+  const W = geo.w;
+  const H = geo.h;
   const board = makeMat(ctx.next(), { x: origin.x, y: origin.y, z: z++, rot: 0 }, {
     label: 'Island',
-    placement: { type: 'slots', slots },
-    size: { w: W, h: H },
+    placement: {
+      type: 'slots',
+      generate: {
+        kind: 'hexgrid',
+        radius: 2,
+        size: S,
+        classes: { cell: ['tile', 'chit', 'robber'], vertex: ['building'], edge: ['road'] },
+      },
+    },
+    size: { w: Math.round(W), h: Math.round(H) },
     locked: true,
   });
   muts.push({ t: 'put', entity: board });
 
-  // tiles + number chits (locked scenery) and the robber (mobile)
-  for (const hx of geo.hexes) {
+  // tiles + number chits (movable: "Random island" re-lays them) + robber
+  const terrains = LAYOUT.flat();
+  for (const [i, hx] of geo.hexes.entries()) {
+    const [terrain, chitNo] = terrains[i];
     const tile: TokenEntity = {
       id: newId('tok'),
       kind: 'token',
       version: ctx.next(),
       parent: board.id,
       pos: { x: hx.cx - S / 2, y: hx.cy - S / 2, z: z++, rot: 0 },
-      locked: true,
-      config: { shape: 'hex', color: TERRAIN[hx.terrain], label: '', size: S, tags: ['tile'] },
+      locked: false,
+      config: { shape: 'hex', color: TERRAIN[terrain], label: '', size: S, tags: ['tile'] },
       state: { count: 1 },
     };
     muts.push({ t: 'put', entity: tile });
-    if (hx.chit !== null) {
+    if (chitNo !== null) {
       const chit: TokenEntity = {
         id: newId('tok'),
         kind: 'token',
         version: ctx.next(),
         parent: board.id,
         pos: { x: hx.cx - 13, y: hx.cy - 13, z: z + 500, rot: 0 },
-        locked: true,
-        config: { shape: 'disc', color: '#f0ece1', label: String(hx.chit), size: 26, tags: ['chit'] },
+        locked: false,
+        config: { shape: 'disc', color: '#f0ece1', label: String(chitNo), size: 26, tags: ['chit'] },
         state: { count: 1 },
       };
       muts.push({ t: 'put', entity: chit });
@@ -164,7 +120,7 @@ export function catanTable(ctx: OpCtx, origin: Pos): Mutation[] {
         parent: board.id,
         pos: { x: hx.cx - 15, y: hx.cy - 15, z: z + 600, rot: 0 },
         locked: false,
-        config: { shape: 'disc', color: '#33343b', label: '☠', size: 30, tags: ['chit'] },
+        config: { shape: 'disc', color: '#33343b', label: '☠', size: 30, tags: ['robber'] },
         state: { count: 1 },
       };
       muts.push({ t: 'put', entity: robber });
@@ -234,6 +190,22 @@ export function catanTable(ctx: OpCtx, origin: Pos): Mutation[] {
     ),
   );
 
+  // ---- staging stacks for "Random island": gather → shuffle → deal-to-slots ----
+  muts.push({
+    t: 'put',
+    entity: makeMat(ctx.next(), { x: origin.x + W + 40, y: origin.y + 40, z: z++, rot: 0 }, {
+      label: 'Tiles',
+      placement: { type: 'stack' },
+    }),
+  });
+  muts.push({
+    t: 'put',
+    entity: makeMat(ctx.next(), { x: origin.x + W + 150, y: origin.y + 40, z: z++, rot: 0 }, {
+      label: 'Chits',
+      placement: { type: 'stack' },
+    }),
+  });
+
   // ---- dice (one entity per die, v4 §4), scoreboard, setup note ----
   for (const [i, v] of [3, 4].entries()) {
     muts.push({
@@ -243,7 +215,7 @@ export function catanTable(ctx: OpCtx, origin: Pos): Mutation[] {
         kind: 'dice',
         version: ctx.next(),
         parent: null,
-        pos: { x: origin.x + W + 50 + i * 46, y: origin.y - 60, z: z++, rot: 0 },
+        pos: { x: origin.x + W + 40 + i * 46, y: origin.y - 60, z: z++, rot: 0 },
         locked: false,
         config: { sides: 6 },
         state: { values: [v], rolledBy: null, rolledAt: 0 },
@@ -275,9 +247,28 @@ export function catanTable(ctx: OpCtx, origin: Pos): Mutation[] {
       config: { color: '#e7d980' },
       state: {
         text:
-          'SETUP: claim a color mat; drag pieces off its stacks (one comes off at a time). Place 2 settlements + 2 roads each — they snap to corners and edges.\n\nTURN: roll (double-click dice), collect resources, trade, build. Robber moves on a 7. First to 10 VP wins.',
+          'SETUP: claim a color mat; drag pieces off its stacks (one comes off at a time). Place 2 settlements + 2 roads each — they snap to corners and edges. "Random island" (top left) re-lays tiles and chits; swap the desert chit off by hand.\n\nTURN: roll (double-click dice), collect resources, trade, build. Robber moves on a 7. First to 10 VP wins.',
       },
     },
   });
   return muts;
+}
+
+/** Quick actions for the gamebox strip: re-lay the island from config —
+ *  shuffle + deal-to-slots, no board code (v4 §7). */
+export function catanMacros(): MacroDef[] {
+  return [
+    {
+      id: 'random-island',
+      label: 'Random island',
+      steps: [
+        { op: 'move', from: 'Island', to: 'Chits', where: { tag: 'chit' } },
+        { op: 'move', from: 'Island', to: 'Tiles', where: { tag: 'tile' } },
+        { op: 'shuffle', from: 'Tiles' },
+        { op: 'deal-to-slots', from: 'Tiles', to: 'Island' },
+        { op: 'shuffle', from: 'Chits' },
+        { op: 'deal-to-slots', from: 'Chits', to: 'Island' },
+      ],
+    },
+  ];
 }

@@ -141,7 +141,8 @@
         </MatRegion>
       {:else if view === 'collapsed'}
         <div class="chip" class:priv={isPrivileged}>
-          {matLabel}{#if showCount}&nbsp;· {stacked.length}{/if}
+          {matLabel}{#if showCount}&nbsp;·
+            {mat.config.supply === 'infinite' ? '∞' : stacked.length}{/if}
           {#if isPrivileged}<span class="eye">👁</span>{/if}
         </div>
       {:else if view === 'fan'}
@@ -191,7 +192,9 @@
                 {top.config.label}
               </div>
             {/if}
-            {#if showCount}<span class="count">{stacked.length}</span>{/if}
+            {#if showCount}
+              <span class="count">{mat.config.supply === 'infinite' ? '∞' : stacked.length}</span>
+            {/if}
             {#if isPrivileged}<span class="eye badge-eye">👁</span>{/if}
             <span class="label">{matLabel}</span>
           {/if}

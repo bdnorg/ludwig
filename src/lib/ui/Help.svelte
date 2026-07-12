@@ -41,6 +41,7 @@
         ['Skip a grid snap', 'hold ⌥ while dropping (mats snap by default)'],
         ['Edit an item (value, sides, label…)', 'right-click → Item settings…'],
         ['Pot totals', 'chips carry a value; stacks show the sum'],
+        ['Infinite bank / supply', 'Mat settings… → Supply: infinite — pulls copy, returns vanish'],
         ['Duplicate anything', 'right-click → Duplicate'],
         ['Split / merge chip stacks', 'drag one chip off · drop a stack onto a match'],
         ['Take one piece off a token stack', 'drag it (side handles move the whole stack)'],

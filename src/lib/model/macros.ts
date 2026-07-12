@@ -7,12 +7,12 @@
 // step's result ("gather then shuffle" shuffles the gathered deck); versions
 // keep increasing across steps, so the final batch converges like any edit.
 
-import type { Entity, MacroDef, MacroStep, MatEntity, Version } from './types';
+import type { Entity, MacroDef, MacroStep, MacroWhere, MatEntity, Version } from './types';
 import type { Mutation, TableState } from './reducers';
 import { applyMutations } from './reducers';
 import type { OpCtx } from './ops';
 import * as ops from './ops';
-import { matCards, matItems } from './mats';
+import { matItems } from './mats';
 
 class ScratchCtx implements OpCtx {
   constructor(
@@ -43,35 +43,32 @@ export function matsInGroup(s: TableState, group: string, hands: MatEntity[]): M
   );
 }
 
-/** Move every card in each source mat into `target` (top, entry face rule —
- *  'keep' gathers face down, like sweeping cards into a deck). */
-export function gatherFrom(ctx: OpCtx, sources: MatEntity[], target: MatEntity): Mutation[] {
-  const muts: Mutation[] = [];
-  const gathered: string[] = [];
-  for (const src of sources) {
-    if (src.id === target.id) continue;
-    const cards = matCards(ctx.state, src);
-    if (cards.length === 0) continue;
-    const taken = new Set(cards.map((c) => c.id));
-    const m = ctx.clone(src);
-    m.state.order = m.state.order.filter((id) => !taken.has(id));
-    m.version = ctx.next();
-    muts.push({ t: 'put', entity: m });
-    for (const card of cards) {
-      const c = ctx.clone(card);
-      c.parent = target.id;
-      c.state.faceUp = target.config.faceDefault === 'keep' ? false : target.config.faceDefault === 'up';
-      c.version = ctx.next();
-      muts.push({ t: 'put', entity: c });
-      gathered.push(c.id);
-    }
+/** Item filter (v4 §8): every given field must match. */
+export function matchesWhere(e: Entity, w?: MacroWhere): boolean {
+  if (!w) return true;
+  if (w.kind && e.kind !== w.kind) return false;
+  if (w.title && !(e.kind === 'card' && e.config.front.title === w.title)) return false;
+  if (w.tag && !(e.kind === 'token' && (e.config.tags ?? []).includes(w.tag))) return false;
+  return true;
+}
+
+/** Items a step's `from` names: loose on the felt ('table'), everything in
+ *  a group's mats, or one mat's contents — filtered by `where`. */
+function sourceItems(
+  s: TableState,
+  from: string,
+  hands: MatEntity[],
+  where?: MacroWhere,
+): Entity[] {
+  let items: Entity[];
+  if (from === 'table') {
+    items = Object.values(s.entities).filter((e) => e.parent === null && e.kind !== 'mat');
+  } else {
+    const mats = matsInGroup(s, from, hands);
+    const sources = mats.length > 0 ? mats : [matByLabel(s, from)].filter((m): m is MatEntity => !!m);
+    items = sources.flatMap((m) => matItems(s, m));
   }
-  if (gathered.length === 0) return [];
-  const t = ctx.clone(target);
-  t.state.order = [...gathered, ...matItems(ctx.state, target).map((e) => e.id)];
-  t.version = ctx.next();
-  muts.push({ t: 'put', entity: t });
-  return muts;
+  return items.filter((e) => matchesWhere(e, where));
 }
 
 function runStep(ctx: ScratchCtx, step: MacroStep, hands: MatEntity[]): Mutation[] {
@@ -81,11 +78,32 @@ function runStep(ctx: ScratchCtx, step: MacroStep, hands: MatEntity[]): Mutation
     if (!from || to.length === 0) return [];
     return ops.deal(ctx, from, to, step.n ?? 1);
   }
-  if (step.op === 'gather') {
+  if (step.op === 'gather' || step.op === 'move') {
+    // gather = the classic card sweep; move = any matching items
     const target = step.to ? matByLabel(ctx.state, step.to) : undefined;
     if (!target) return [];
-    if (step.from === 'table') return ops.gatherTableCards(ctx, target);
-    return gatherFrom(ctx, matsInGroup(ctx.state, step.from ?? '', hands), target);
+    const items = sourceItems(ctx.state, step.from ?? '', hands, step.where).filter(
+      (e) => step.op === 'move' || e.kind === 'card',
+    );
+    return ops.moveItemsInto(ctx, items, target);
+  }
+  if (step.op === 'flip') {
+    const items = sourceItems(ctx.state, step.from ?? 'table', hands, step.where);
+    const muts: Mutation[] = [];
+    for (const e of items) {
+      if (e.kind !== 'card') continue;
+      const c = ctx.clone(e);
+      c.state.faceUp = step.face ? step.face === 'up' : !c.state.faceUp;
+      c.version = ctx.next();
+      muts.push({ t: 'put', entity: c });
+    }
+    return muts;
+  }
+  if (step.op === 'deal-to-slots') {
+    const from = step.from ? matByLabel(ctx.state, step.from) : undefined;
+    const board = step.to ? matByLabel(ctx.state, step.to) : undefined;
+    if (!from || board?.config.placement.type !== 'slots') return [];
+    return ops.dealToSlots(ctx, from, board);
   }
   // shuffle
   const mat = matByLabel(ctx.state, step.from ?? step.to ?? '');

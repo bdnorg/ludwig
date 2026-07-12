@@ -6,7 +6,7 @@ import type { MacroDef } from '../model/types';
 import type { TableState } from '../model/reducers';
 import { standardDeck } from '../model/cards52';
 import { dominionTable } from '../model/dominion';
-import { catanTable } from '../model/catan';
+import { catanMacros, catanTable } from '../model/catan';
 import { cardTableMacros } from '../model/macros';
 import { ROOT_MAT_ID } from '../model/mats';
 import type { TableStore } from './store.svelte';
@@ -73,5 +73,8 @@ export function applyPendingTemplate(store: TableStore): void {
     store.emit(standardDeck(store, { x: 620, y: 300, z: 1, rot: 0 }));
     setRootMacros(store, cardTableMacros('Deck'));
   } else if (id === 'dominion') store.emit(dominionTable(store, { x: 70, y: 70, z: 1, rot: 0 }));
-  else if (id === 'catan') store.emit(catanTable(store, { x: 280, y: 60, z: 1, rot: 0 }));
+  else if (id === 'catan') {
+    store.emit(catanTable(store, { x: 280, y: 60, z: 1, rot: 0 }));
+    setRootMacros(store, catanMacros());
+  }
 }
