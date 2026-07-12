@@ -143,3 +143,43 @@ gamebox; keyboard v1 = palette + core verbs + auto mat letters.
   "gather from <group>", "reset") in the action registry.
 - Lobby: help/instructions page, import-template button.
 - Gamebox quick-action strip.
+
+---
+
+# v4 milestones (PROPOSAL.md, decisions locked 2026-07)
+
+## M13 — Selection & handles
+- Selection set: click selects, ⌘/Ctrl-click toggles, rubber-band on
+  plain felt/region-mat drag; ⇧-drag (or middle-drag) pans.
+- Multi-move: dragging a selected item translates the whole selection
+  (one atomic batch, one undo).
+- Mat move handles (side midpoints) + resize handle, hover-visible;
+  stacks/token piles: body-drag takes one, handles move the pile —
+  the ⌥-drag modifier dies.
+- Actions over selections (flip/roll/delete/… N at once); mat menu
+  "Select all …" + auto-derived "Flip all cards" / "Roll all dice";
+  keys act on the selection when one exists.
+
+## M14 — Views, values, item settings
+- Mat view options: `stackKinds` (stack cards, tokens loose),
+  fit-contents outline; grid placement on by default, ⌥-drag bypasses
+  snap.
+- Named values on items (`config.values`); chips label+value; stack sum
+  display; Item settings dialog; Duplicate action; dice `count` dropped
+  (dice tray preset instead).
+- Configurable always-visible mat buttons; quick-action lists with
+  consistent gesture mapping (dbl-click = #1, ⌥-dbl-click = #2).
+
+## M15 — Supplies & boards
+- Infinite supplies (clone-on-pull, return destroys, ∞ badge).
+- Slot generators (hexgrid/squaregrid) + `deal-to-slots` op; Catan
+  rebuilt on them with a random-setup macro.
+- Macro `where` filters ({kind, title, tags}) for gather/flip/move.
+
+## M16 — Privacy & front door
+- Private-mat flag: thick borders (extra for mine), owner list,
+  non-owner view subsets (backs/count/existence/positions).
+- Per-viewer arrangement conveniences for others' private mats (side
+  group, circle).
+- Export drops tombstones, keeps log; clear-log watermark; palette
+  rework (spawn entries as preset data).
