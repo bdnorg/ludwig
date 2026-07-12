@@ -6,11 +6,15 @@
   let {
     mat,
     privileged,
+    sizeOverride = null,
     onMove,
     children,
   }: {
     mat: MatEntity;
     privileged: boolean;
+    /** fit-contents view: computed extent replaces the configured size and
+     *  disables the resize handle (v4 §2) */
+    sizeOverride?: { w: number; h: number } | null;
     /** side-handle drag: move the mat itself (PROPOSAL v4 §2) */
     onMove: (e: PointerEvent) => void;
     children: Snippet;
@@ -20,8 +24,8 @@
   let live = $state<{ w: number; h: number } | null>(null);
   let start: { sx: number; sy: number; w: number; h: number } | null = null;
 
-  const w = $derived(live?.w ?? mat.config.size?.w ?? 300);
-  const h = $derived(live?.h ?? mat.config.size?.h ?? 220);
+  const w = $derived(sizeOverride?.w ?? live?.w ?? mat.config.size?.w ?? 300);
+  const h = $derived(sizeOverride?.h ?? live?.h ?? mat.config.size?.h ?? 220);
 
   function beginResize(e: PointerEvent) {
     if (e.button !== 0 || mat.locked) return;
@@ -92,8 +96,10 @@
     {@render children()}
   </div>
   {#if !mat.locked}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="handle" onpointerdown={beginResize} ondblclick={(e) => e.stopPropagation()}></div>
+    {#if !sizeOverride}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="handle" onpointerdown={beginResize} ondblclick={(e) => e.stopPropagation()}></div>
+    {/if}
     {#each ['n', 'e', 's', 'w'] as side (side)}
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div

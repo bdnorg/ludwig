@@ -26,9 +26,7 @@ const finders = {
   scoreboard: (s) => Object.values(s.entities).find((e) => e.kind === 'scoreboard'),
   timer: (s) => Object.values(s.entities).find((e) => e.kind === 'timer'),
   zone: (s) =>
-    Object.values(s.entities).find(
-      (e) => e.kind === 'mat' && e.config.placement.type === 'free' && e.id !== 'mat_table',
-    ),
+    Object.values(s.entities).find((e) => e.kind === 'mat' && e.config.label === 'Play area'),
   deck: (s) =>
     Object.values(s.entities).find(
       (e) => e.kind === 'mat' && e.config.placement.type === 'stack',
@@ -46,13 +44,11 @@ async function drag(from, to, { alt = false } = {}) {
   if (alt) await page.keyboard.up('Alt');
 }
 
-/** Move an entity by its hover move-handle (piles/mats never body-drag, M13). */
+/** Move an entity by its hover move-handle (piles/mats never body-drag, M13).
+ *  Use the EAST handle: the north one sits under the hover-button bar. */
 async function dragByHandle(e, dx, dy, hover = { dx: 10, dy: 10 }) {
   await page.mouse.move(e.pos.x + hover.dx, e.pos.y + hover.dy + TOOLBAR); // reveal handles
-  const bb = await page
-    .locator(`[data-entity-id="${e.id}"] [data-handle="move"]`)
-    .first()
-    .boundingBox();
+  const bb = await page.locator(`[data-entity-id="${e.id}"] .h-e`).boundingBox();
   const c = { x: bb.x + bb.width / 2, y: bb.y + bb.height / 2 };
   await drag(c, { x: c.x + dx, y: c.y + dy });
 }
@@ -78,7 +74,7 @@ async function spawnAt(label, kind, tx, ty, grab = { dx: 10, dy: 10 }) {
 
 // lay the toolkit out on a grid so nothing overlaps
 const chip = await spawnAt('Chips $5', 'token', 150, 550, { dx: 17, dy: 17 });
-const dice = await spawnAt('Two dice', 'dice', 350, 560, { dx: 20, dy: 20 });
+const dice = await spawnAt('Die (d6)', 'dice', 350, 560, { dx: 20, dy: 20 });
 await spawnAt('Counter', 'counter', 550, 550, { dx: 46, dy: 8 });
 await spawnAt('Scoreboard', 'scoreboard', 800, 520, { dx: 60, dy: 8 });
 await spawnAt('Timer', 'timer', 1050, 550, { dx: 60, dy: 12 });
@@ -457,6 +453,66 @@ ok(
   'f flipped every selected card in one step',
 );
 await page.keyboard.press('Escape');
+
+// ---- M14: dice tray, mat buttons, values, item settings ----
+
+// spawn a dice tray: two single-die entities on a mat with a Roll button
+await page.click('.toolbar button.primary');
+await page.click('.menu button:has-text("Dice tray")');
+await settle();
+s = await state();
+const tray = Object.values(s.entities).find(
+  (e) => e.kind === 'mat' && e.config.label === 'Dice tray',
+);
+let trayDice = Object.values(s.entities).filter((e) => e.kind === 'dice' && e.parent === tray.id);
+ok(
+  trayDice.length === 2 && trayDice.every((d) => d.config.sides === 6 && d.state.values.length === 1),
+  'dice tray spawned with two single-die entities',
+);
+await page.click(`[data-entity-id="${tray.id}"] .matbtns button`);
+await settle();
+s = await state();
+ok(
+  Object.values(s.entities).filter(
+    (e) => e.kind === 'dice' && e.parent === tray.id && e.state.rolledAt > 0,
+  ).length === 2,
+  'the tray Roll button rolled both dice',
+);
+
+// chip stacks show their value total (20 x $5 = 100)
+const badges = await page.evaluate(() =>
+  [...document.querySelectorAll('.stackbadge')].map((b) => b.textContent.replace(/\s+/g, ' ').trim()),
+);
+ok(badges.some((t) => t.includes('= 100')), `chip stack shows value total (${badges.join(' | ')})`);
+
+// item settings: retype a die to d20 through the dialog
+const die0 = trayDice[0];
+await page.locator(`[data-entity-id="${die0.id}"]`).click({ button: 'right' });
+await page.click('.menu button:has-text("Item settings")');
+await page.fill('[data-field="sides"]', '20');
+await page.click('.dialog button:has-text("Save")');
+await settle();
+s = await state();
+ok(s.entities[die0.id].config.sides === 20, 'item settings changed the die to d20');
+
+// duplicate clones the die beside the original, inside the same mat
+await page.locator(`[data-entity-id="${die0.id}"]`).click({ button: 'right' });
+await page.click('.menu button:has-text("Duplicate")');
+await settle();
+s = await state();
+ok(
+  Object.values(s.entities).filter((e) => e.kind === 'dice' && e.parent === tray.id).length === 3,
+  'duplicate cloned the die on the tray',
+);
+
+// alt-drag bypasses the grid snap inside a grid mat
+s = await state();
+const zcard = Object.values(s.entities).find((e) => e.kind === 'card' && e.parent === zone.id);
+const zat = { x: zone.pos.x + zcard.pos.x + 36, y: zone.pos.y + zcard.pos.y + 50 + TOOLBAR };
+await drag(zat, { x: zat.x + 13, y: zat.y + 7 }, { alt: true });
+await settle();
+s = await state();
+ok(s.entities[zcard.id].pos.x % 40 !== 0, `alt-drag skipped the grid snap (x=${s.entities[zcard.id].pos.x})`);
 
 // shift-drag pans the felt (kept out of the way until the end: it moves the
 // coordinate frame)

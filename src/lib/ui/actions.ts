@@ -9,11 +9,12 @@
 // one undo reverses the whole motion.
 
 import type { CardEntity, DiceEntity, Entity, MatEntity, Pos } from '../model/types';
+import { newId } from '../model/types';
 import type { Mutation } from '../model/reducers';
 import { applyMutations } from '../model/reducers';
 import * as ops from '../model/ops';
 import type { OpCtx } from '../model/ops';
-import { canSeeFaces, handIdFor, matItems, rootMat } from '../model/mats';
+import { canSeeFaces, getMat, handIdFor, matItems, rootMat } from '../model/mats';
 import { runMacro } from '../model/macros';
 import { table } from '../state/store.svelte';
 
@@ -105,6 +106,24 @@ const lockMuts: MutsFn = (ctx, e) => {
   d.locked = !d.locked;
   d.version = ctx.next();
   return [{ t: 'put', entity: d }];
+};
+
+const dupMuts: MutsFn = (ctx, e) => {
+  const d = ctx.clone(e);
+  d.id = newId(e.kind === 'token' ? 'tok' : e.kind);
+  let z = 0;
+  for (const x of Object.values(ctx.state.entities)) z = Math.max(z, x.pos.z);
+  d.pos = { ...d.pos, x: d.pos.x + 24, y: d.pos.y + 24, z: z + 1 };
+  d.version = ctx.next();
+  const muts: Mutation[] = [{ t: 'put', entity: d }];
+  const parent = getMat(ctx.state, e.parent);
+  if (parent) {
+    const m = ctx.clone(parent);
+    m.state.order = [d.id, ...m.state.order];
+    m.version = ctx.next();
+    muts.push({ t: 'put', entity: m });
+  }
+  return muts;
 };
 
 export const ACTIONS: UiAction[] = [
@@ -235,6 +254,13 @@ export const ACTIONS: UiAction[] = [
     run: (e) => commitAll(lockMuts, [e]),
   },
   {
+    id: 'duplicate',
+    label: 'Duplicate',
+    muts: dupMuts,
+    appliesTo: (e) => !e.locked && e.kind !== 'mat',
+    run: (e) => commitAll(dupMuts, [e]),
+  },
+  {
     id: 'delete',
     label: 'Delete',
     key: 'x',
@@ -275,6 +301,37 @@ export function matCompoundItems(mat: MatEntity): Array<{ label: string; run: ()
   if (dice.length > 1)
     out.push({ label: `Roll all ${dice.length} dice here`, run: () => commitAll(rollMuts, dice) });
   return out;
+}
+
+/** Run a mat button / quick-action id (v4 §5, §9): a registry action on the
+ *  mat, a compound (roll-all-dice, flip-all-cards), or macro:<id>. */
+export function runMatButton(actionId: string, mat: MatEntity): void {
+  if (actionId.startsWith('macro:')) {
+    macroActions()
+      .find((a) => a.id === actionId)
+      ?.run(mat);
+    return;
+  }
+  if (actionId === 'roll-all-dice') {
+    const dice = matItems(table.state, mat).filter((e) => e.kind === 'dice');
+    if (dice.length > 0) commitAll(rollMuts, dice);
+    return;
+  }
+  if (actionId === 'flip-all-cards') {
+    const cards = matItems(table.state, mat).filter((e) => e.kind === 'card');
+    if (cards.length > 0) commitAll(flipMuts, cards);
+    return;
+  }
+  const a = ACTIONS.find((x) => x.id === actionId);
+  if (a && a.appliesTo(mat)) a.run(mat);
+}
+
+export function matButtonLabel(actionId: string): string {
+  if (actionId === 'roll-all-dice') return 'Roll';
+  if (actionId === 'flip-all-cards') return 'Flip all';
+  if (actionId.startsWith('macro:'))
+    return macroActions().find((a) => a.id === actionId)?.label ?? actionId;
+  return ACTIONS.find((x) => x.id === actionId)?.label ?? actionId;
 }
 
 /** Template-defined macros from the root mat, as registry actions (SPEC §15).

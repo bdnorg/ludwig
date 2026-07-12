@@ -234,20 +234,22 @@ export function catanTable(ctx: OpCtx, origin: Pos): Mutation[] {
     ),
   );
 
-  // ---- dice, scoreboard, setup note ----
-  muts.push({
-    t: 'put',
-    entity: {
-      id: newId('dice'),
-      kind: 'dice',
-      version: ctx.next(),
-      parent: null,
-      pos: { x: origin.x + W + 50, y: origin.y - 60, z: z++, rot: 0 },
-      locked: false,
-      config: { sides: 6, count: 2 },
-      state: { values: [3, 4], rolledBy: null, rolledAt: 0 },
-    },
-  });
+  // ---- dice (one entity per die, v4 §4), scoreboard, setup note ----
+  for (const [i, v] of [3, 4].entries()) {
+    muts.push({
+      t: 'put',
+      entity: {
+        id: newId('dice'),
+        kind: 'dice',
+        version: ctx.next(),
+        parent: null,
+        pos: { x: origin.x + W + 50 + i * 46, y: origin.y - 60, z: z++, rot: 0 },
+        locked: false,
+        config: { sides: 6 },
+        state: { values: [v], rolledBy: null, rolledAt: 0 },
+      },
+    });
+  }
   muts.push({
     t: 'put',
     entity: {

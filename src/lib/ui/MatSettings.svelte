@@ -37,6 +37,12 @@
   let faceDefault = $state(mat.config.faceDefault);
   // svelte-ignore state_referenced_locally
   let privacy = $state<MatPrivacy>(inferPrivacy(mat));
+  // svelte-ignore state_referenced_locally
+  let buttonsText = $state(
+    (mat.config.buttons ?? []).map((b) => (b.label ? `${b.label}:${b.action}` : b.action)).join(', '),
+  );
+  // svelte-ignore state_referenced_locally
+  let showSum = $state(mat.config.showSum ?? '');
 
   const COLORS: Array<[string, string]> = [
     ['none', ''],
@@ -72,6 +78,18 @@
           m.config.size = { w: 300, h: 220 };
       }
       m.config.faceDefault = faceDefault;
+      if (!isRoot) {
+        const btns = buttonsText
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean)
+          .map((t) => {
+            const i = t.indexOf(':');
+            return i > 0 ? { label: t.slice(0, i).trim(), action: t.slice(i + 1).trim() } : { action: t };
+          });
+        m.config.buttons = btns.length > 0 ? btns : undefined;
+        m.config.showSum = showSum.trim() || undefined;
+      }
       if (changedPrivacy) {
         m.config.privacy = privacy;
         m.config.visibility = privacyVisibility(privacy);
@@ -145,6 +163,14 @@
   </label>
 
   {#if !isRoot}
+    <label>
+      Buttons (action ids, e.g. draw, shuffle, roll-all-dice, flip-all-cards)
+      <input data-field="buttons" bind:value={buttonsText} placeholder="none" />
+    </label>
+    <label>
+      Show sum of value (e.g. "value" for a chip pot)
+      <input data-field="showsum" bind:value={showSum} placeholder="none" />
+    </label>
     <label>
       Privacy
       <select data-field="privacy" bind:value={privacy}>

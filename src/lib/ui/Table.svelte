@@ -7,13 +7,14 @@
   import {
     canSeeFaces,
     getMat,
+    isStackedKind,
     makeMat,
     matItems,
     matLetters,
     matPresets,
     ROOT_MAT_ID,
     rootMat,
-    topItem,
+    topStacked,
   } from '../model/mats';
   import { buildCardSet, validateCardSet } from '../model/cardsets';
   import { dominionTable } from '../model/dominion';
@@ -31,11 +32,13 @@
     commitAll,
     macroActions,
     matCompoundItems,
+    runMatButton,
     selectionEntities,
     uiHooks,
     type UiAction,
   } from './actions';
   import QuickActions from './QuickActions.svelte';
+  import ItemSettings from './ItemSettings.svelte';
   import type { MenuItem } from './menu';
   import EntityView from './EntityView.svelte';
   import MatSettings from './MatSettings.svelte';
@@ -299,9 +302,9 @@
       return;
     }
     table.select([ent.id]); // plain click replaces the selection
-    // the body of a pile always takes the top item; handles move the pile
+    // the body of a pile always takes the top STACKED item; handles move it
     if (ent.kind === 'mat' && ent.config.placement.type === 'stack') {
-      const top = topItem(table.state, ent);
+      const top = topStacked(table.state, ent);
       if (top) startGhostDrag(e, top.id, ent.id);
       return;
     }
@@ -391,12 +394,13 @@
       const mat = getMat(table.state, target.id);
       if (mat) {
         const stackish = ['stack', 'fan'].includes(mat.config.placement.type);
-        if (stackish && (ent.kind === 'card' || ent.kind === 'token')) {
+        // only stackKinds pile onto a stack; other kinds land loose on it
+        if (stackish && isStackedKind(mat, ent) && (ent.kind === 'card' || ent.kind === 'token')) {
           table.setPosOverride(ent.id, null);
           table.commit(ops.moveToMat(table, ent, mat, { where: 'top' }));
           return;
         }
-        if (!stackish && !isRegionMat) {
+        if (!isRegionMat) {
           const o = table.effectiveOrigin(mat.id);
           const pos: Pos = {
             x: p.x - o.x - d.dx,
@@ -405,21 +409,19 @@
             rot: ent.pos.rot,
           };
           table.setPosOverride(ent.id, null);
-          table.commit(ops.moveToMat(table, ent, mat, { pos }));
+          table.commit(ops.moveToMat(table, ent, mat, { pos, snap: !e.altKey }));
           return;
         }
       }
     }
     // root table (or repositioning within current frame if unchanged parent = root)
-    const pos: Pos = rootSnap(
-      {
-        x: p.x - d.dx,
-        y: p.y - d.dy,
-        z: isRegionMat ? ent.pos.z : table.maxZ() + 1,
-        rot: ent.pos.rot,
-      },
-      ent,
-    );
+    const rawPos: Pos = {
+      x: p.x - d.dx,
+      y: p.y - d.dy,
+      z: isRegionMat ? ent.pos.z : table.maxZ() + 1,
+      rot: ent.pos.rot,
+    };
+    const pos: Pos = e.altKey ? rawPos : rootSnap(rawPos, ent); // ⌥ skips the grid
     if (ent.parent === null) {
       if (ent.positioning === 'arbitrary') {
         // my view only: store the placement locally, never sync (SPEC §10)
@@ -438,9 +440,10 @@
         target.id === ent.parent &&
         !['stack', 'fan'].includes(parentMat.config.placement.type);
       if (stillInside) {
-        // moving within the same region mat: reposition + snap, no entry rule
+        // moving within the same region mat: reposition + snap (⌥ skips it),
+        // no entry rule
         const local: Pos = { x: p.x - d.fx - d.dx, y: p.y - d.fy - d.dy, z: pos.z, rot: pos.rot };
-        const snapped = ops.snapPos(parentMat, local, ent);
+        const snapped = e.altKey ? local : ops.snapPos(parentMat, local, ent);
         if (ent.positioning === 'arbitrary') {
           delete table.dragPos[ent.id];
           table.setPosOverride(ent.id, { x: snapped.x, y: snapped.y, z: snapped.z });
@@ -637,7 +640,7 @@
       if (mat && !isDescendant(mat.id, g.id)) {
         if (mat.id === g.srcMat && ['stack'].includes(mat.config.placement.type)) return;
         const stackish = ['stack', 'fan'].includes(mat.config.placement.type);
-        if (stackish) {
+        if (stackish && isStackedKind(mat, item)) {
           table.commit(ops.moveToMat(table, item, mat, { where: 'top' }));
         } else {
           const o = table.effectiveOrigin(mat.id);
@@ -647,6 +650,7 @@
           table.commit(
             ops.moveToMat(table, item, mat, {
               pos: { x: p.x - o.x - w / 2, y: p.y - o.y - h / 2, z: table.maxZ() + 1, rot: 0 },
+              snap: !e.altKey,
             }),
           );
         }
@@ -660,7 +664,8 @@
     const w = item.kind === 'card' ? item.config.w : 30;
     const h = item.kind === 'card' ? item.config.h : 30;
     const naturalUp = src ? canSeeFaces(src, table.me.id) : true;
-    const pos = rootSnap({ x: p.x - w / 2, y: p.y - h / 2, z: table.maxZ() + 1, rot: 0 }, item);
+    const rawDrop: Pos = { x: p.x - w / 2, y: p.y - h / 2, z: table.maxZ() + 1, rot: 0 };
+    const pos = e.altKey ? rawDrop : rootSnap(rawDrop, item);
     table.commit(
       ops.moveToTable(
         table,
@@ -680,9 +685,15 @@
     return src && canSeeFaces(src, table.me.id) ? ghostItem.config.front : null;
   });
 
-  // ---- double-click ----
+  // ---- double-click: configured quick action #1 (⌥ = #2), else the
+  // platform default per kind (v4 §9) ----
   function onDouble(e: PointerEvent | MouseEvent, ent: Entity) {
     e.stopPropagation();
+    if (ent.kind === 'mat' && ent.config.quickActions?.length) {
+      const qa = ent.config.quickActions;
+      runMatButton((e.altKey && qa[1]) || qa[0], ent);
+      return;
+    }
     if (ent.kind === 'card') table.commit(ops.flipCard(table, ent));
     else if (ent.kind === 'mat' && ['stack', 'fan'].includes(ent.config.placement.type))
       table.commit(ops.drawTo(table, ent, table.myHand()));
@@ -714,10 +725,12 @@
   let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
   let searchMatId = $state<string | null>(null);
   let settingsMatId = $state<string | null>(null);
+  let itemSettingsId = $state<string | null>(null);
   let paletteOpen = $state(false);
   let paletteSel = $state<Entity | null>(null);
   const searchMat = $derived(searchMatId ? getMat(table.state, searchMatId) : undefined);
   const settingsMat = $derived(settingsMatId ? getMat(table.state, settingsMatId) : undefined);
+  const settingsItem = $derived(itemSettingsId ? table.get(itemSettingsId) : undefined);
 
   uiHooks.openSearch = (matId) => (searchMatId = matId);
   uiHooks.spotBeside = (e) => {
@@ -769,6 +782,13 @@
         items.push({
           label: `My view: ${cur} → ${next}`,
           run: () => table.setView(ent.id, next),
+        });
+      } else if (ent.id !== ROOT_MAT_ID) {
+        // region mats: shrink-wrap the outline to the contents (v4 §2)
+        const fit = table.views[ent.id] === 'fit';
+        items.push({
+          label: fit ? 'My view: fit contents → fixed size' : 'My view: fixed size → fit contents',
+          run: () => table.setView(ent.id, fit ? 'auto' : 'fit'),
         });
       }
     }
@@ -826,23 +846,6 @@
       },
     });
 
-    if (ent.kind === 'dice') {
-      items.push({
-        label: 'Change dice…',
-        run: () => {
-          const spec = prompt('Dice (e.g. 2d6, 1d20):', `${ent.config.count}d${ent.config.sides}`);
-          const m = spec?.match(/^\s*(\d+)\s*d\s*(\d+)\s*$/i);
-          if (!m) return;
-          const [count, sides] = [Math.min(12, +m[1]), Math.min(1000, +m[2])];
-          if (count < 1 || sides < 2) return;
-          table.update(ent, (d) => {
-            d.config.count = count;
-            d.config.sides = sides;
-            d.state.values = Array.from({ length: count }, () => 1);
-          });
-        },
-      });
-    }
     if (ent.kind === 'token') {
       const count = ent.state.count ?? 1;
       if (count > 1) {
@@ -866,16 +869,10 @@
           },
         );
       }
-      items.push({
-        label: 'Set label…',
-        run: () => {
-          const label = prompt('Token label:', ent.config.label);
-          if (label !== null)
-            table.update(ent, (t) => {
-              t.config.label = label;
-            });
-        },
-      });
+    }
+    // one dialog for what an item IS (label, value, shape, sides…) — v4 §4
+    if (['token', 'dice', 'card', 'counter', 'scoreboard'].includes(ent.kind)) {
+      items.push({ label: '⚙ Item settings…', run: () => (itemSettingsId = ent.id) });
     }
     if (ent.kind === 'note') {
       const NOTE_COLORS: Array<[string, string]> = [
@@ -894,30 +891,6 @@
             }),
         });
       }
-    }
-    if (ent.kind === 'counter' || ent.kind === 'scoreboard') {
-      items.push({
-        label: 'Rename…',
-        run: () => {
-          const label = prompt('Label:', ent.config.label);
-          if (label)
-            table.update(ent, (c) => {
-              c.config.label = label;
-            });
-        },
-      });
-    }
-    if (ent.kind === 'counter') {
-      items.push({
-        label: 'Set value…',
-        run: () => {
-          const v = Number(prompt('Value:', String(ent.state.value)));
-          if (Number.isFinite(v))
-            table.update(ent, (c) => {
-              c.state.value = v;
-            });
-        },
-      });
     }
     if (ent.kind === 'timer') {
       items.push(
@@ -997,11 +970,12 @@
 
   const TOKEN_COLORS = ['#e4573d', '#3d9be4', '#48b265', '#d9a521', '#9b59c9', '#f0f0f0', '#22242a'];
   let tokenColorIdx = 0;
+  // chips carry a label AND a numeric value; stacks show the total (v4 §4)
   const CHIPS = [
-    { label: '$1', color: '#b8b2a0' },
-    { label: '$5', color: '#c0392b' },
-    { label: '$25', color: '#27ae60' },
-    { label: '$100', color: '#22242a' },
+    { label: '$1', color: '#b8b2a0', value: 1 },
+    { label: '$5', color: '#c0392b', value: 5 },
+    { label: '$25', color: '#27ae60', value: 25 },
+    { label: '$100', color: '#22242a', value: 100 },
   ];
 
   function spawnMat(opts: Parameters<typeof makeMat>[2]) {
@@ -1017,7 +991,13 @@
         run: () =>
           spawn(
             'token',
-            { shape: 'disc', color: chip.color, label: chip.label, size: 34 },
+            {
+              shape: 'disc',
+              color: chip.color,
+              label: chip.label,
+              size: 34,
+              values: { value: chip.value },
+            },
             { count: 20 },
             'tok',
           ),
@@ -1038,13 +1018,32 @@
           ),
       },
       {
-        label: '⚄ Two dice (d6)',
-        run: () =>
-          spawn('dice', { sides: 6, count: 2 }, { values: [1, 1], rolledBy: null, rolledAt: 0 }),
+        label: '⚄ Dice tray (2d6)',
+        run: () => {
+          const pos = centerPos();
+          const tray = makeMat(table.next(), pos, matPresets.diceTray());
+          const muts: Mutation[] = [{ t: 'put', entity: tray }];
+          for (let i = 0; i < 2; i++) {
+            muts.push({
+              t: 'put',
+              entity: {
+                id: newId('dice'),
+                kind: 'dice',
+                version: table.next(),
+                parent: tray.id,
+                pos: { x: 18 + i * 58, y: 26, z: i + 1, rot: 0 },
+                locked: false,
+                config: { sides: 6 },
+                state: { values: [i + 2], rolledBy: null, rolledAt: 0 },
+              },
+            });
+          }
+          table.commit(muts);
+        },
       },
       {
         label: '⚄ Die (d6)',
-        run: () => spawn('dice', { sides: 6, count: 1 }, { values: [1], rolledBy: null, rolledAt: 0 }),
+        run: () => spawn('dice', { sides: 6 }, { values: [1], rolledBy: null, rolledAt: 0 }),
       },
       { label: '# Counter', run: () => spawn('counter', { label: 'Counter' }, { value: 0 }) },
       { label: '≡ Scoreboard', run: () => spawn('scoreboard', { label: 'Score' }, { values: {} }) },
@@ -1057,17 +1056,19 @@
             { mode: 'stopwatch', running: false, startedAt: 0, elapsedMs: 0, durationMs: 0 },
           ),
       },
-      { label: '▭ Mat (free)', run: () => spawnMat(matPresets.zone('Zone')) },
+      { label: '▦ Mat (snap grid)', run: () => spawnMat(matPresets.zone('Zone')) },
       {
         label: '▭ Mat (cards enter face down)',
-        run: () => spawnMat({ ...matPresets.zone('Play area', 'down') }),
+        run: () => spawnMat(matPresets.zone('Play area', 'down')),
       },
+      { label: '▭ Mat (free — no snap)', run: () => spawnMat(matPresets.zone('Zone', 'keep', false)) },
       {
-        label: '▦ Mat (snap grid)',
+        label: '⬡ Mat (hex grid)',
         run: () =>
           spawnMat({
-            ...matPresets.zone('Grid'),
-            placement: { type: 'grid', grid: { size: 40 } },
+            ...matPresets.zone('Hex board'),
+            placement: { type: 'grid', grid: { size: 60, hex: true } },
+            size: { w: 380, h: 320 },
           }),
       },
       { label: '🗈 Note', run: () => spawn('note', { color: '#e7d980' }, { text: '' }) },
@@ -1147,6 +1148,7 @@
       menu = null;
       searchMatId = null;
       settingsMatId = null;
+      itemSettingsId = null;
       paletteOpen = false;
       table.pendingSend = null;
       table.select([]);
@@ -1353,6 +1355,11 @@
   {#if settingsMat}
     {#key settingsMat.id}
       <MatSettings mat={settingsMat} onClose={() => (settingsMatId = null)} />
+    {/key}
+  {/if}
+  {#if settingsItem}
+    {#key settingsItem.id}
+      <ItemSettings item={settingsItem} onClose={() => (itemSettingsId = null)} />
     {/key}
   {/if}
   {#if paletteOpen}

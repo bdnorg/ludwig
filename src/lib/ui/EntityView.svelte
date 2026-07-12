@@ -6,10 +6,12 @@
     canSeeExistence,
     canSeeFaces,
     faceVisible,
+    isStackedKind,
     matItems,
     privileged,
-    topItem,
+    sumValue,
   } from '../model/mats';
+  import { matButtonLabel, runMatButton } from './actions';
   import Self from './EntityView.svelte';
   import CardFaceView from './CardFaceView.svelte';
   import NoteView from './NoteView.svelte';
@@ -44,7 +46,13 @@
 
   const mat = $derived(entity.kind === 'mat' ? (entity as MatEntity) : null);
   const items = $derived(mat ? matItems(table.state, mat) : []);
-  const top = $derived(mat ? items[0] : undefined);
+  // only stackKinds pile up; the rest sit loose at their own positions (v4 §2)
+  const stacked = $derived(mat ? items.filter((i) => isStackedKind(mat, i)) : []);
+  const loose = $derived(mat ? items.filter((i) => !isStackedKind(mat, i)) : []);
+  const top = $derived(stacked[0]);
+  const sum = $derived(
+    mat?.config.showSum ? sumValue(table.state, mat, mat.config.showSum) : null,
+  );
   const connectedIds = $derived([...new Set([me, ...Object.values(table.peers)])]);
   const isPrivileged = $derived(mat ? privileged(mat, me, connectedIds) : false);
   const showCount = $derived(mat ? canSeeCount(mat, me) : true);
@@ -68,6 +76,21 @@
         : mat.config.label
       : '',
   );
+
+  // fit-contents view: the region outline hugs its items (v4 §2)
+  const fitSize = $derived.by(() => {
+    if (!mat || !isRegion || table.views[entity.id] !== 'fit') return null;
+    let maxX = 48;
+    let maxY = 48;
+    for (const it of items) {
+      const p = table.effectivePos(it);
+      const w = it.kind === 'card' ? it.config.w : it.kind === 'token' ? it.config.size : 100;
+      const h = it.kind === 'card' ? it.config.h : it.kind === 'token' ? it.config.size : 70;
+      maxX = Math.max(maxX, p.x + w);
+      maxY = Math.max(maxY, p.y + h);
+    }
+    return { w: Math.round(maxX + 12), h: Math.round(maxY + 12) };
+  });
 
   // piles move by their hover handles; the body always takes the top item
   // (PROPOSAL v4 §2). Region mats carry their handles inside MatRegion.
@@ -106,19 +129,24 @@
   >
     {#if mat}
       {#if view === 'region'}
-        <MatRegion {mat} privileged={isPrivileged} onMove={(e) => handlers.onMatMove(e, entity)}>
+        <MatRegion
+          {mat}
+          privileged={isPrivileged}
+          sizeOverride={fitSize}
+          onMove={(e) => handlers.onMatMove(e, entity)}
+        >
           {#each items as child (child.id)}
             <Self entity={child} {handlers} />
           {/each}
         </MatRegion>
       {:else if view === 'collapsed'}
         <div class="chip" class:priv={isPrivileged}>
-          {matLabel}{#if showCount}&nbsp;· {items.length}{/if}
+          {matLabel}{#if showCount}&nbsp;· {stacked.length}{/if}
           {#if isPrivileged}<span class="eye">👁</span>{/if}
         </div>
       {:else if view === 'fan'}
         <div class="fan" class:priv={isPrivileged}>
-          {#each items as child (child.id)}
+          {#each stacked as child (child.id)}
             {#if child.kind === 'card'}
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
@@ -132,7 +160,7 @@
               </div>
             {/if}
           {/each}
-          {#if items.length === 0}
+          {#if stacked.length === 0}
             <div class="empty small">{mat.config.label}</div>
           {/if}
           {#if isPrivileged}<span class="eye badge-eye">👁</span>{/if}
@@ -141,10 +169,10 @@
       {:else}
         <!-- stack -->
         <div class="stack" class:priv={isPrivileged} style:min-width="72px" style:min-height="100px">
-          {#if items.length === 0}
+          {#if stacked.length === 0}
             <div class="empty">{mat.config.label}</div>
           {:else}
-            {#if items.length > 1}
+            {#if stacked.length > 1}
               <div class="under">
                 {#if top?.kind === 'card'}
                   <CardFaceView w={top.config.w} h={top.config.h} />
@@ -163,10 +191,31 @@
                 {top.config.label}
               </div>
             {/if}
-            {#if showCount}<span class="count">{items.length}</span>{/if}
+            {#if showCount}<span class="count">{stacked.length}</span>{/if}
             {#if isPrivileged}<span class="eye badge-eye">👁</span>{/if}
             <span class="label">{matLabel}</span>
           {/if}
+        </div>
+      {/if}
+      {#if view !== 'region'}
+        {#each loose as child (child.id)}
+          <Self entity={child} {handlers} />
+        {/each}
+      {/if}
+      {#if sum !== null && showCount}
+        <span class="sumbadge" title="sum of {mat.config.showSum}">Σ {sum}</span>
+      {/if}
+      {#if mat.config.buttons?.length}
+        <div class="matbtns">
+          {#each mat.config.buttons as b (b.action)}
+            <button
+              onpointerdown={(e) => e.stopPropagation()}
+              ondblclick={(e) => e.stopPropagation()}
+              onclick={() => runMatButton(b.action, mat)}
+            >
+              {b.label ?? matButtonLabel(b.action)}
+            </button>
+          {/each}
         </div>
       {/if}
     {:else if entity.kind === 'token'}
@@ -184,7 +233,11 @@
       >
         {entity.config.label}
         {#if (entity.state.count ?? 1) > 1}
-          <span class="stackbadge">×{entity.state.count}</span>
+          <span class="stackbadge">
+            ×{entity.state.count}{entity.config.values?.value
+              ? ` = ${entity.config.values.value * entity.state.count}`
+              : ''}
+          </span>
         {/if}
       </div>
     {:else if entity.kind === 'dice'}
@@ -400,6 +453,41 @@
     left: -10px;
     z-index: 2;
     filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+  }
+  .sumbadge {
+    position: absolute;
+    bottom: -9px;
+    right: -8px;
+    background: var(--panel);
+    border: 1px solid #454f60;
+    border-radius: 10px;
+    padding: 0 6px;
+    font-size: 0.62rem;
+    color: var(--accent);
+    z-index: 2;
+    white-space: nowrap;
+  }
+  /* always-visible configurable buttons on the mat's edge (v4 §5) */
+  .matbtns {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    display: flex;
+    gap: 4px;
+    z-index: 2;
+  }
+  .matbtns button {
+    font-size: 0.65rem;
+    padding: 1px 8px;
+    background: rgba(30, 34, 43, 0.92);
+    border: 1px solid #454f60;
+    border-radius: 10px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .matbtns button:hover {
+    border-color: var(--accent);
   }
   /* annotation marker: hover for the text, edit via the context menu */
   .anno {

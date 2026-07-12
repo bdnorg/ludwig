@@ -102,6 +102,8 @@ export interface MoveOpts {
   where?: 'top' | 'bottom' | 'shuffle';
   /** override the mat's faceDefault for this move (e.g. shift-drop) */
   face?: 'up' | 'down' | 'keep';
+  /** false skips grid/slot snapping (⌥-drag bypass, v4 §3) */
+  snap?: boolean;
 }
 
 /** THE move: item into a mat. Applies the entry face rule only when the
@@ -122,7 +124,7 @@ export function moveToMat(ctx: OpCtx, item: Entity, mat: MatEntity, opts: MoveOp
 
   const it = ctx.clone(item);
   it.parent = mat.id;
-  if (opts.pos) it.pos = snapPos(m, opts.pos, it);
+  if (opts.pos) it.pos = opts.snap === false ? opts.pos : snapPos(m, opts.pos, it);
   if (it.kind === 'card' && entering) {
     const face = opts.face ?? m.config.faceDefault;
     if (face !== 'keep') it.state.faceUp = face === 'up';
@@ -246,10 +248,12 @@ export function gatherTableCards(ctx: OpCtx, mat: MatEntity): Mutation[] {
   return [...muts, put(ctx, m)];
 }
 
-/** Roll every die: the actor resolves randomness locally (SPEC §5). */
+/** Roll a die: the actor resolves randomness locally (SPEC §5). One entity
+ *  is one die (v4 §4); pre-v4 multi-value dice keep rolling all values. */
 export function rollDice(ctx: OpCtx, dice: DiceEntity, rolledBy: string): Mutation[] {
   const d = ctx.clone(dice);
-  d.state.values = Array.from({ length: d.config.count }, () => randInt(d.config.sides) + 1);
+  const n = Math.max(1, d.state.values.length);
+  d.state.values = Array.from({ length: n }, () => randInt(d.config.sides) + 1);
   d.state.rolledBy = rolledBy;
   d.state.rolledAt = Date.now();
   return [put(ctx, d)];

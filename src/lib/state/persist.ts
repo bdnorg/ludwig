@@ -4,18 +4,37 @@ import { emptyTable } from '../model/reducers';
 const key = (room: string) => `ludwig:table:${room}`;
 
 /** Pre-M11 saves had hands as hidden `docked` mats pinned to chrome; they
- *  are ordinary on-table private mats now (SPEC §15). */
+ *  are ordinary on-table private mats now (SPEC §15). Pre-M14 dice packed
+ *  `config.count` dice into one entity; one entity is one die now (v4 §4) —
+ *  splits use deterministic ids so every peer migrates identically. */
 function migrate(s: TableState): TableState {
   for (const e of Object.values(s.entities)) {
-    if (e.kind !== 'mat') continue;
-    const cfg = e.config as { docked?: boolean } & typeof e.config;
-    if (!cfg.docked) continue;
-    delete cfg.docked;
-    if (cfg.ownerId) {
-      e.positioning = 'arbitrary';
-      e.locked = false;
-      cfg.privacy ??= 'backs';
-      if (e.pos.x === 0 && e.pos.y === 0) e.pos = { x: 220, y: 480, z: e.pos.z, rot: 0 };
+    if (e.kind === 'mat') {
+      const cfg = e.config as { docked?: boolean } & typeof e.config;
+      if (!cfg.docked) continue;
+      delete cfg.docked;
+      if (cfg.ownerId) {
+        e.positioning = 'arbitrary';
+        e.locked = false;
+        cfg.privacy ??= 'backs';
+        if (e.pos.x === 0 && e.pos.y === 0) e.pos = { x: 220, y: 480, z: e.pos.z, rot: 0 };
+      }
+    } else if (e.kind === 'dice') {
+      const cfg = e.config as { sides: number; count?: number };
+      const count = cfg.count ?? Math.max(1, e.state.values.length);
+      delete cfg.count;
+      if (count <= 1) continue;
+      const vals = e.state.values;
+      for (let i = 1; i < count; i++) {
+        const id = `${e.id}_d${i}`;
+        if (s.entities[id]) continue;
+        const twin = JSON.parse(JSON.stringify(e)) as typeof e;
+        twin.id = id;
+        twin.pos = { ...e.pos, x: e.pos.x + i * 46 };
+        twin.state.values = [vals[i] ?? 1];
+        s.entities[id] = twin;
+      }
+      e.state.values = [vals[0] ?? 1];
     }
   }
   return s;

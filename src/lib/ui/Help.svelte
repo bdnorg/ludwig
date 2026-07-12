@@ -37,7 +37,11 @@
       title: 'Everything else',
       rows: [
         ['Command palette', 'Space — lists every action for what you point at'],
-        ['Roll dice', 'double-click them (or press r)'],
+        ['Roll dice', 'double-click them (or press r); a tray’s Roll button rolls all'],
+        ['Skip a grid snap', 'hold ⌥ while dropping (mats snap by default)'],
+        ['Edit an item (value, sides, label…)', 'right-click → Item settings…'],
+        ['Pot totals', 'chips carry a value; stacks show the sum'],
+        ['Duplicate anything', 'right-click → Duplicate'],
         ['Split / merge chip stacks', 'drag one chip off · drop a stack onto a match'],
         ['Take one piece off a token stack', 'drag it (side handles move the whole stack)'],
         ['Board slots (Catan)', 'pieces snap to matching hex/corner/edge slots'],

@@ -48,6 +48,30 @@ export function topItem(s: TableState, mat: MatEntity): Entity | undefined {
   return matItems(s, mat)[0];
 }
 
+/** Does this kind stack on the mat? Others sit loose at their own positions
+ *  ("stack the cards, chips on top" — v4 §2). Default: everything stacks. */
+export function isStackedKind(mat: MatEntity, e: Entity): boolean {
+  const kinds = mat.config.stackKinds;
+  return !kinds || kinds.includes(e.kind);
+}
+
+/** The item a body-drag pulls: the top of the STACKED portion. */
+export function topStacked(s: TableState, mat: MatEntity): Entity | undefined {
+  return matItems(s, mat).find((e) => isStackedKind(mat, e));
+}
+
+/** Sum of a named value over a mat's items (token stacks multiply by their
+ *  count) — the pot total, the deck's total cost… (v4 §4). */
+export function sumValue(s: TableState, mat: MatEntity, name: string): number {
+  let sum = 0;
+  for (const e of matItems(s, mat)) {
+    if (e.kind !== 'card' && e.kind !== 'token') continue;
+    const v = e.config.values?.[name];
+    if (v !== undefined) sum += v * (e.kind === 'token' ? (e.state.count ?? 1) : 1);
+  }
+  return sum;
+}
+
 export function getMat(s: TableState, id: string | null | undefined): MatEntity | undefined {
   if (!id) return undefined;
   const e = s.entities[id];
@@ -138,6 +162,10 @@ export interface MatOpts {
   locked?: boolean;
   order?: string[];
   groups?: string[];
+  stackKinds?: MatEntity['config']['stackKinds'];
+  showSum?: string;
+  buttons?: MatEntity['config']['buttons'];
+  quickActions?: string[];
 }
 
 export function makeMat(version: Version, pos: Pos, o: MatOpts): MatEntity {
@@ -164,6 +192,10 @@ export function makeMat(version: Version, pos: Pos, o: MatOpts): MatEntity {
       color: o.color ?? null,
       size: o.size ?? null,
       groups: o.groups,
+      stackKinds: o.stackKinds,
+      showSum: o.showSum,
+      buttons: o.buttons,
+      quickActions: o.quickActions,
     },
     state: { order: o.order ?? [] },
   };
@@ -194,11 +226,20 @@ export const matPresets = {
     privacy: 'backs',
     positioning: 'arbitrary',
   }),
-  zone: (label = 'Zone', faceDefault: 'up' | 'down' | 'keep' = 'keep'): MatOpts => ({
+  // region mats default to a snap grid (v4 §3); ⌥-drag bypasses it
+  zone: (label = 'Zone', faceDefault: 'up' | 'down' | 'keep' = 'keep', grid = true): MatOpts => ({
     label,
-    placement: { type: 'free' },
+    placement: grid ? { type: 'grid', grid: { size: 40 } } : { type: 'free' },
     faceDefault,
     size: { w: 300, h: 220 },
+  }),
+  /** dice live loose on a tray; its button and double-click roll them all */
+  diceTray: (label = 'Dice tray'): MatOpts => ({
+    label,
+    placement: { type: 'free' },
+    size: { w: 150, h: 96 },
+    buttons: [{ action: 'roll-all-dice' }],
+    quickActions: ['roll-all-dice'],
   }),
 };
 

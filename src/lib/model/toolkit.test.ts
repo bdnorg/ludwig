@@ -3,7 +3,7 @@ import type { DiceEntity, TokenEntity } from './types';
 import * as ops from './ops';
 import { TestPeer, token } from './testutil';
 
-function dice(peer: TestPeer, sides: number, count: number): DiceEntity {
+function dice(peer: TestPeer, sides: number, count = 1): DiceEntity {
   const d: DiceEntity = {
     id: 'dice1',
     kind: 'dice',
@@ -11,7 +11,9 @@ function dice(peer: TestPeer, sides: number, count: number): DiceEntity {
     parent: null,
     pos: { x: 0, y: 0, z: 0, rot: 0 },
     locked: false,
-    config: { sides, count },
+    config: { sides },
+    // one die per entity since v4; multi-value arrays are the pre-v4
+    // compatibility path and must keep rolling every value
     state: { values: Array(count).fill(1), rolledBy: null, rolledAt: 0 },
   };
   peer.apply([{ t: 'put', entity: d }]);
@@ -19,7 +21,7 @@ function dice(peer: TestPeer, sides: number, count: number): DiceEntity {
 }
 
 describe('dice', () => {
-  it('rolls values in range and records the roller', () => {
+  it('rolls values in range and records the roller (legacy multi-value)', () => {
     const peer = new TestPeer('a');
     const d = dice(peer, 6, 4);
     for (let i = 0; i < 50; i++) {

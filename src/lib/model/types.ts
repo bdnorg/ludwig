@@ -101,8 +101,9 @@ export interface MacroDef {
   steps: MacroStep[];
 }
 
-/** How a viewer renders a mat — local preference, never synced (SPEC §11). */
-export type ViewMode = 'auto' | 'stack' | 'fan' | 'collapsed';
+/** How a viewer renders a mat — local preference, never synced (SPEC §11).
+ *  'fit' (region mats): the outline shrink-wraps the contents (v4 §2). */
+export type ViewMode = 'auto' | 'stack' | 'fan' | 'collapsed' | 'fit';
 
 /** The one container: deck, discard, hand, zone, and board are all mats. */
 export type MatEntity = Base<
@@ -129,6 +130,17 @@ export type MatEntity = Base<
     groups?: string[];
     /** template-defined quick actions; meaningful on the root mat */
     macros?: MacroDef[];
+    /** which kinds render stacked in stack view; others sit loose at their
+     *  own positions on the mat (v4 §2). Default: everything stacks. */
+    stackKinds?: EntityKind[];
+    /** show the sum of this named value over contained items (v4 §4) */
+    showSum?: string;
+    /** always-visible buttons on the mat's edge (v4 §5): registry action
+     *  ids, compound ids (roll-all-dice, flip-all-cards), or macro:<id> */
+    buttons?: Array<{ label?: string; action: string }>;
+    /** double-click runs the first entry, ⌥-double-click the second
+     *  (v4 §9); falls back to the platform default per kind */
+    quickActions?: string[];
   },
   {
     /** stack/fan order, index 0 = top; membership authority is child.parent */
@@ -147,6 +159,8 @@ export type TokenEntity = Base<
     size: number;
     /** matched against slot `accepts` when snapping (e.g. "building", "road") */
     tags?: string[];
+    /** named numeric values (chips: { value: 5 }); stacks show sums (v4 §4) */
+    values?: Record<string, number>;
   },
   { count: number } // a stack of identical pieces; 1 = a single token
 >;
@@ -159,13 +173,23 @@ export type NoteEntity = Base<
 
 export type CardEntity = Base<
   'card',
-  { front: CardFace; back: CardFace; w: number; h: number },
+  {
+    front: CardFace;
+    back: CardFace;
+    w: number;
+    h: number;
+    /** named numeric values (cost, strength…); mats can show sums (v4 §4) */
+    values?: Record<string, number>;
+  },
   { faceUp: boolean }
 >;
 
+/** ONE die — multiplicity is containment ("2d6" = two dice in a tray mat,
+ *  v4 §4). state.values stays an array for save compatibility; new dice
+ *  hold exactly one value. */
 export type DiceEntity = Base<
   'dice',
-  { sides: number; count: number },
+  { sides: number },
   { values: number[]; rolledBy: string | null; rolledAt: number }
 >;
 

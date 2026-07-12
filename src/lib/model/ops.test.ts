@@ -4,6 +4,7 @@ import {
   canSeeFaces,
   faceVisible,
   handIdFor,
+  isStackedKind,
   makeMat,
   makeRootMat,
   matCards,
@@ -13,10 +14,12 @@ import {
   privacyVisibility,
   privileged,
   ROOT_MAT_ID,
+  sumValue,
+  topStacked,
 } from './mats';
 import { standardDeck } from './cards52';
 import * as ops from './ops';
-import { TestPeer } from './testutil';
+import { TestPeer, token } from './testutil';
 
 function makeHand(peer: TestPeer, playerId: string): MatEntity {
   const hand = makeMat(peer.next(), { x: 0, y: 0, z: 0, rot: 0 }, matPresets.hand(playerId));
@@ -252,6 +255,64 @@ describe('everything is a mat (SPEC §15)', () => {
     const letters = matLetters(peer.state);
     expect(letters[ROOT_MAT_ID]).toBeUndefined();
     expect(letters[deck.id]).toBe('d');
+  });
+
+  it('named values sum over a mat, token stacks × their count (v4 §4)', () => {
+    const peer = new TestPeer('a');
+    const pot = makeMat(peer.next(), { x: 0, y: 0, z: 0, rot: 0 }, { label: 'Pot', showSum: 'value' });
+    peer.apply([{ t: 'put', entity: pot }]);
+    const chip = token('c1', 'a', 2);
+    chip.parent = pot.id;
+    chip.config.values = { value: 5 };
+    chip.state.count = 4;
+    const chip2 = token('c2', 'a', 3);
+    chip2.parent = pot.id;
+    chip2.config.values = { value: 25 };
+    peer.apply([{ t: 'put', entity: chip }, { t: 'put', entity: chip2 }]);
+    expect(sumValue(peer.state, peer.state.entities[pot.id] as MatEntity, 'value')).toBe(45);
+    expect(sumValue(peer.state, peer.state.entities[pot.id] as MatEntity, 'nope')).toBe(0);
+  });
+
+  it('stackKinds: only listed kinds stack; the body-pull skips loose ones', () => {
+    const peer = new TestPeer('a');
+    peer.apply(standardDeck(peer, { x: 0, y: 0, z: 0, rot: 0 }));
+    const deck = Object.values(peer.state.entities).find((e) => e.kind === 'mat') as MatEntity;
+    peer.apply([
+      {
+        t: 'put',
+        entity: (() => {
+          const d = structuredClone(deck);
+          d.config.stackKinds = ['card'];
+          d.version = peer.next();
+          return d;
+        })(),
+      },
+    ]);
+    const tok = token('t1', 'a', peer.clock + 1);
+    peer.apply(ops.moveToMat(peer, tok, peer.state.entities[deck.id] as MatEntity, { where: 'top' }));
+    const mat = peer.state.entities[deck.id] as MatEntity;
+    expect(mat.state.order[0]).toBe('t1'); // physically on top of the pile…
+    expect(isStackedKind(mat, peer.state.entities['t1'])).toBe(false);
+    expect(topStacked(peer.state, mat)?.kind).toBe('card'); // …but the pull takes a card
+  });
+
+  it('moveToMat with snap:false skips the grid (⌥-drag, v4 §3)', () => {
+    const peer = new TestPeer('a');
+    peer.apply(standardDeck(peer, { x: 0, y: 0, z: 0, rot: 0 }));
+    const deck = Object.values(peer.state.entities).find((e) => e.kind === 'mat') as MatEntity;
+    const grid = makeMat(peer.next(), { x: 0, y: 0, z: 0, rot: 0 }, matPresets.zone('G'));
+    peer.apply([{ t: 'put', entity: grid }]);
+    peer.apply(ops.drawToTable(peer, deck, { x: 5, y: 5, z: 1, rot: 0 }, false));
+    const card = Object.values(peer.state.entities).find(
+      (e) => e.kind === 'card' && e.parent === null,
+    )!;
+    peer.apply(
+      ops.moveToMat(peer, card, peer.state.entities[grid.id] as MatEntity, {
+        pos: { x: 33, y: 52, z: 1, rot: 0 },
+        snap: false,
+      }),
+    );
+    expect([peer.state.entities[card.id].pos.x, peer.state.entities[card.id].pos.y]).toEqual([33, 52]);
   });
 
   it('hex grids snap to the staggered lattice', () => {

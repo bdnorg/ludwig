@@ -64,13 +64,13 @@ describe('dominion template', () => {
     }
     // kingdom/supply piles are face up
     expect(decks.find((d) => d.config.label === 'Village')?.config.faceDefault).toBe('up');
-    // setup note and play-area mat exist
+    // setup note and play-area mat exist (region mats default to a grid, v4 §3)
     expect(Object.values(peer.state.entities).some((e) => e.kind === 'note')).toBe(true);
-    expect(
-      Object.values(peer.state.entities).some(
-        (e) => e.kind === 'mat' && e.config.placement.type === 'free',
-      ),
-    ).toBe(true);
+    const play = Object.values(peer.state.entities).find(
+      (e) => e.kind === 'mat' && e.config.label === 'Play area',
+    );
+    expect(play?.kind === 'mat' && play.config.placement.type).toBe('grid');
+    expect(play?.kind === 'mat' && play.config.groups).toEqual(['play']);
   });
 });
 

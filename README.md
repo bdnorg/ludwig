@@ -60,7 +60,13 @@ timers, zones, and notes — or import your own card set / saved template
 | Pin a mat to your tray / unpin | right-click a mat (hands start pinned) |
 | Annotate anything | right-click → Annotation… (📝 badge; hover to read) |
 | Reveal your hand | "reveal all" in the hand tray |
-| Roll dice | double-click them |
+| Roll dice | double-click them (a dice tray's Roll button rolls all) |
+| Skip a grid snap | hold ⌥ while dropping (mats snap by default) |
+| Edit an item — value, sides, label… | right-click → Item settings… |
+| Chip values & pot totals | chips carry a value; stacks show the sum |
+| Put buttons on a mat | Mat settings… → Buttons (draw, shuffle, roll-all-dice…) |
+| Shrink a mat to its contents | right-click → My view: fit contents |
+| Duplicate anything | right-click → Duplicate |
 | Split a chip stack | right-click → Take 1 / Split stack… |
 | Merge chip stacks | drop a stack onto a matching one |
 | Adjust scores | +/− on a counter or scoreboard |
