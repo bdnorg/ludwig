@@ -1,17 +1,18 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { CardEntity, Entity, MatEntity, Pos, VisibilityRule } from '../model/types';
+  import type { Entity, MatEntity, Pos } from '../model/types';
   import { newId } from '../model/types';
   import * as ops from '../model/ops';
   import { standardDeck } from '../model/cards52';
   import {
     canSeeFaces,
-    describeRule,
     getMat,
     makeMat,
     matItems,
     matLetters,
     matPresets,
+    ROOT_MAT_ID,
+    rootMat,
     topItem,
   } from '../model/mats';
   import { buildCardSet, validateCardSet } from '../model/cardsets';
@@ -19,11 +20,12 @@
   import { catanTable } from '../model/catan';
   import { table } from '../state/store.svelte';
   import { connect } from '../net/room';
-  import { exportTable, exportTemplate, loadMeta } from '../state/persist';
+  import { exportTable, loadMeta } from '../state/persist';
   import { applyPendingTemplate } from '../state/templates';
   import { ACTIONS, actionsFor, actionForKey, uiHooks, type UiAction } from './actions';
   import type { MenuItem } from './menu';
   import EntityView from './EntityView.svelte';
+  import MatSettings from './MatSettings.svelte';
   import HandTray from './HandTray.svelte';
   import Roster from './Roster.svelte';
   import Toolbar from './Toolbar.svelte';
@@ -97,11 +99,20 @@
     window.removeEventListener('pointerup', onPanUp);
   }
 
-  // ---- entities at the root (docked mats render in chrome, not here) ----
+  // ---- entities at the root. The root mat itself renders as the felt; mats
+  // I pinned render in my tray instead (a local view preference, SPEC §15)
   const tableEntities = $derived(
     Object.values(table.state.entities)
-      .filter((e) => e.parent === null && !(e.kind === 'mat' && e.config.docked))
+      .filter(
+        (e) => e.parent === null && e.id !== ROOT_MAT_ID && !(e.kind === 'mat' && table.isPinned(e.id)),
+      )
       .sort((a, b) => a.pos.z - b.pos.z),
+  );
+
+  // the felt IS the root mat: color and grid come from its config
+  const root = $derived(rootMat(table.state));
+  const rootGrid = $derived(
+    root?.config.placement.type === 'grid' ? (root.config.placement.grid ?? null) : null,
   );
 
   // ---- selection & hover (feeds hover buttons, palette, keys) ----
@@ -133,6 +144,15 @@
   // ---- drag: entities (in whatever mat frame they live) ----
   let drag: { id: string; dx: number; dy: number; fx: number; fy: number; moved: boolean } | null =
     null;
+
+  /** Entry rules of the root mat: the felt is a mat like any other. */
+  function rootEntryFace(natural: boolean): boolean {
+    const fd = root?.config.faceDefault ?? 'keep';
+    return fd === 'keep' ? natural : fd === 'up';
+  }
+  function rootSnap(pos: Pos, item?: Entity): Pos {
+    return root ? ops.snapPos(root, pos, item) : pos;
+  }
 
   function isDescendant(id: string, ancestorId: string): boolean {
     let cur: string | null = id;
@@ -232,7 +252,7 @@
 
     const target = dropTargetAt(e.clientX, e.clientY, ent.id);
     if (target?.type === 'tray' && ent.kind === 'card') {
-      table.commit(ops.moveToMat(table, ent, table.myHand()));
+      dropInTray(ent, e.clientX, e.clientY);
       return;
     }
     if (target?.type === 'mat' && !isDescendant(target.id, ent.id)) {
@@ -259,12 +279,15 @@
       }
     }
     // root table (or repositioning within current frame if unchanged parent = root)
-    const pos: Pos = {
-      x: p.x - d.dx,
-      y: p.y - d.dy,
-      z: isRegionMat ? ent.pos.z : table.maxZ() + 1,
-      rot: ent.pos.rot,
-    };
+    const pos: Pos = rootSnap(
+      {
+        x: p.x - d.dx,
+        y: p.y - d.dy,
+        z: isRegionMat ? ent.pos.z : table.maxZ() + 1,
+        rot: ent.pos.rot,
+      },
+      ent,
+    );
     if (ent.parent === null) {
       if (ent.positioning === 'arbitrary') {
         // my view only: store the placement locally, never sync (SPEC §10)
@@ -296,21 +319,53 @@
         }
       } else {
         table.setPosOverride(ent.id, null); // containment changes are shared
-        table.commit(ops.moveToTable(table, ent, pos));
+        table.commit(
+          ops.moveToTable(
+            table,
+            ent,
+            pos,
+            ent.kind === 'card' ? rootEntryFace(ent.state.faceUp) : undefined,
+          ),
+        );
       }
     }
   }
 
-  /** Where in the tray fan a drop at screen-x lands: count the other cards
+  /** Which pinned mat a tray drop lands in (default: my hand). */
+  function trayMatAt(cx: number, cy: number): MatEntity {
+    for (const el of document.elementsFromPoint(cx, cy)) {
+      const id = (el as HTMLElement).dataset?.trayMat;
+      const m = id ? getMat(table.state, id) : undefined;
+      if (m) return m;
+    }
+    return table.myHand();
+  }
+
+  /** Where in a tray fan a drop at screen-x lands: count the other cards
    *  whose center is left of the pointer. */
-  function trayInsertIndex(cx: number, excludeId: string): number {
+  function trayInsertIndex(matId: string, cx: number, excludeId: string): number {
     let idx = 0;
-    for (const el of document.querySelectorAll<HTMLElement>('.tray .slot')) {
+    for (const el of document.querySelectorAll<HTMLElement>(
+      `.tray [data-tray-mat="${matId}"] .slot`,
+    )) {
       if (el.dataset.cardId === excludeId) continue;
       const r = el.getBoundingClientRect();
       if (cx > r.left + r.width / 2) idx++;
     }
     return idx;
+  }
+
+  /** Drop a card into the tray: reorder if it's already in that mat, else
+   *  move it in at the pointed-at index. */
+  function dropInTray(item: Entity, cx: number, cy: number) {
+    const mat = trayMatAt(cx, cy);
+    const idx = trayInsertIndex(mat.id, cx, item.id);
+    if (item.parent === mat.id) table.commit(ops.reorderInMat(table, mat, item, idx));
+    else
+      table.commit([
+        ...ops.moveToMat(table, item, mat),
+        ...ops.reorderInMat(table, mat, item, idx),
+      ]);
   }
 
   type DropTarget = { type: 'mat' | 'token'; id: string } | { type: 'tray' };
@@ -442,10 +497,7 @@
     const target = dropTargetAt(e.clientX, e.clientY, g.id);
 
     if (target?.type === 'tray') {
-      const hand = table.myHand();
-      const idx = trayInsertIndex(e.clientX, g.id);
-      if (item.parent === hand.id) table.commit(ops.reorderInMat(table, hand, item, idx));
-      else table.commit([...ops.moveToMat(table, item, hand), ...ops.reorderInMat(table, hand, item, idx)]);
+      dropInTray(item, e.clientX, e.clientY);
       return;
     }
     if (target?.type === 'mat') {
@@ -471,14 +523,19 @@
     }
     // to the root table. Natural face: if I could see its face where it came
     // from (hand, face-up pile), it plays face up; from a hidden stack it
-    // stays hidden. Shift inverts.
+    // stays hidden. Shift inverts; the felt's own entry rule trumps both.
     const p = screenToTable(e.clientX, e.clientY);
     const w = item.kind === 'card' ? item.config.w : 30;
     const h = item.kind === 'card' ? item.config.h : 30;
     const naturalUp = src ? canSeeFaces(src, table.me.id) : true;
-    const pos: Pos = { x: p.x - w / 2, y: p.y - h / 2, z: table.maxZ() + 1, rot: 0 };
+    const pos = rootSnap({ x: p.x - w / 2, y: p.y - h / 2, z: table.maxZ() + 1, rot: 0 }, item);
     table.commit(
-      ops.moveToTable(table, item, pos, item.kind === 'card' ? naturalUp !== e.shiftKey : undefined),
+      ops.moveToTable(
+        table,
+        item,
+        pos,
+        item.kind === 'card' ? rootEntryFace(naturalUp !== e.shiftKey) : undefined,
+      ),
     );
   }
 
@@ -517,9 +574,11 @@
   // ---- context menu / hover buttons / palette (all from the registry) ----
   let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
   let searchMatId = $state<string | null>(null);
+  let settingsMatId = $state<string | null>(null);
   let paletteOpen = $state(false);
   let paletteSel = $state<Entity | null>(null);
   const searchMat = $derived(searchMatId ? getMat(table.state, searchMatId) : undefined);
+  const settingsMat = $derived(settingsMatId ? getMat(table.state, settingsMatId) : undefined);
 
   uiHooks.openSearch = (matId) => (searchMatId = matId);
   uiHooks.spotBeside = (e) => {
@@ -539,15 +598,6 @@
     menu = { x: e.clientX, y: e.clientY, items: menuFor(ent) };
   }
 
-  function setVis(mat: MatEntity, field: 'faces' | 'count' | 'existence', rule: VisibilityRule) {
-    table.update(mat, (m) => {
-      m.config.visibility[field] = rule;
-    });
-    table.logMsg(
-      `${table.playerName(table.me.id)} set “${mat.config.label}” ${field} visible to ${describeRule(rule)}`,
-    );
-  }
-
   function menuFor(ent: Entity): MenuItem[] {
     const items: MenuItem[] = actionsFor(ent).map((a) => ({
       label: a.key ? `${a.label}  (${a.key})` : a.label,
@@ -556,16 +606,10 @@
     }));
 
     if (ent.kind === 'mat') {
-      const vis = ent.config.visibility;
+      items.push({ label: '⚙ Mat settings…', run: () => (settingsMatId = ent.id) });
       items.push({
-        label: `Faces: ${describeRule(vis.faces)} → ${vis.faces === 'public' ? 'owner only' : 'everyone'}`,
-        run: () => setVis(ent, 'faces', vis.faces === 'public' ? 'owner' : 'public'),
-      });
-      if (vis.faces !== 'public' && vis.faces !== 'owner')
-        items.push({ label: 'Faces: everyone', run: () => setVis(ent, 'faces', 'public') });
-      items.push({
-        label: `Count: ${describeRule(vis.count)} → ${vis.count === 'public' ? 'owner only' : 'everyone'} (advanced)`,
-        run: () => setVis(ent, 'count', vis.count === 'public' ? 'owner' : 'public'),
+        label: table.isPinned(ent.id) ? 'Unpin from my tray' : 'Pin to my tray',
+        run: () => table.setPin(ent.id, !table.isPinned(ent.id)),
       });
       if (['stack', 'fan'].includes(ent.config.placement.type)) {
         const cur = table.views[ent.id] ?? 'auto';
@@ -575,20 +619,10 @@
           run: () => table.setView(ent.id, next),
         });
       }
-      items.push({
-        label: 'Rename…',
-        run: () => {
-          const label = prompt('Label:', ent.config.label);
-          if (label)
-            table.update(ent, (m) => {
-              m.config.label = label;
-            });
-        },
-      });
     }
 
     // positioning mode: shared moves vs my-view-only (SPEC §10)
-    if (!(ent.kind === 'mat' && ent.config.docked)) {
+    {
       const arb = ent.positioning === 'arbitrary';
       items.push({
         label: arb ? 'Position: my view only → shared' : 'Position: shared → my view only',
@@ -615,6 +649,18 @@
         });
       }
     }
+
+    // annotations live on any entity (SPEC §15)
+    items.push({
+      label: ent.annotation ? '📝 Annotation…' : 'Annotation…',
+      run: () => {
+        const text = prompt('Annotation (empty to remove):', ent.annotation ?? '');
+        if (text === null) return;
+        table.update(ent, (d) => {
+          d.annotation = text.trim() || undefined;
+        });
+      },
+    });
 
     if (ent.kind === 'dice') {
       items.push({
@@ -883,6 +929,20 @@
     menu = { x: e.clientX, y: e.clientY, items: spawnMenuItems() };
   }
 
+  // right-clicking the felt opens the ROOT MAT's menu — the table is a mat
+  function onFeltMenu(e: MouseEvent) {
+    e.preventDefault();
+    const { clientX: x, clientY: y } = e;
+    menu = {
+      x,
+      y,
+      items: [
+        { label: '⚙ Table settings…', run: () => (settingsMatId = ROOT_MAT_ID) },
+        { label: '＋ Add to table…', run: () => (menu = { x, y, items: spawnMenuItems() }) },
+      ],
+    };
+  }
+
   let cardSetInput: HTMLInputElement;
   async function importCardSet(file: File) {
     try {
@@ -893,12 +953,9 @@
     }
   }
 
-  // ---- import / export ----
+  // ---- import / export (a template IS an ordinary save, SPEC §15) ----
   function doExport() {
     exportTable(room, table.snapshot());
-  }
-  function doExportTemplate() {
-    exportTemplate(room, table.snapshot());
   }
   async function doImport(file: File) {
     try {
@@ -924,6 +981,7 @@
     if (e.key === 'Escape') {
       menu = null;
       searchMatId = null;
+      settingsMatId = null;
       paletteOpen = false;
       table.pendingSend = null;
       return;
@@ -981,7 +1039,6 @@
   <Toolbar
     onAddMenu={openSpawnMenu}
     onExport={doExport}
-    onExportTemplate={doExportTemplate}
     onImport={doImport}
     onUndo={() => table.undo()}
   />
@@ -1002,19 +1059,37 @@
     class="viewport"
     data-drop="table"
     bind:this={viewportEl}
+    style:background-color={root?.config.color ?? undefined}
     onwheel={onWheel}
     onpointerdown={onBackgroundDown}
     onpointermove={onPointerMoveViewport}
-    oncontextmenu={(e) => e.preventDefault()}
+    oncontextmenu={onFeltMenu}
   >
     <div class="surface" style:transform="translate({view.x}px, {view.y}px) scale({view.scale})">
+      {#if rootGrid}
+        {@const g = rootGrid.size}
+        {@const dy = Math.round(g * 0.866)}
+        {@const bx = 20000 % g}
+        {@const by = rootGrid.hex ? 20000 % (2 * dy) : 20000 % g}
+        <div
+          class="feltgrid"
+          style:background-size={rootGrid.hex ? `${g}px ${2 * dy}px` : `${g}px ${g}px`}
+          style:background-image={rootGrid.hex
+            ? 'radial-gradient(circle 2px, rgba(255,255,255,0.28) 98%, transparent), radial-gradient(circle 2px, rgba(255,255,255,0.28) 98%, transparent)'
+            : 'linear-gradient(to right, rgba(255,255,255,0.09) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.09) 1px, transparent 1px)'}
+          style:background-position={rootGrid.hex
+            ? `${bx}px ${by}px, ${bx + g / 2}px ${by + dy}px`
+            : `${bx}px ${by}px`}
+        ></div>
+      {/if}
       {#each tableEntities as entity (entity.id)}
         <EntityView {entity} {handlers} />
       {/each}
       <Cursors />
       {#if table.pendingSend}
-        {#each tableEntities.filter((e) => e.kind === 'mat') as m (m.id)}
-          <span class="letter" style:left="{m.pos.x - 12}px" style:top="{m.pos.y - 12}px">
+        {#each tableEntities.filter((e) => e.kind === 'mat' && letters[e.id]) as m (m.id)}
+          {@const mp = table.effectivePos(m)}
+          <span class="letter" style:left="{mp.x - 12}px" style:top="{mp.y - 12}px">
             {letters[m.id]}
           </span>
         {/each}
@@ -1023,7 +1098,7 @@
   </div>
 
   <Roster />
-  <HandTray onCardGrab={(e, id) => startGhostDrag(e, id, table.myHand().id)} />
+  <HandTray onCardGrab={(e, id, matId) => startGhostDrag(e, id, matId)} />
   <LogPanel />
 
   {#if table.pendingSend}
@@ -1086,6 +1161,11 @@
   {#if searchMat}
     <DeckSearch mat={searchMat} onClose={() => (searchMatId = null)} />
   {/if}
+  {#if settingsMat}
+    {#key settingsMat.id}
+      <MatSettings mat={settingsMat} onClose={() => (settingsMatId = null)} />
+    {/key}
+  {/if}
   {#if paletteOpen}
     <Palette
       selection={paletteSel}
@@ -1118,6 +1198,15 @@
   .surface {
     position: absolute;
     transform-origin: 0 0;
+  }
+  /* root-mat grid, drawn in table coordinates so it pans/zooms with play */
+  .feltgrid {
+    position: absolute;
+    left: -20000px;
+    top: -20000px;
+    width: 40000px;
+    height: 40000px;
+    pointer-events: none;
   }
   .ghost {
     position: fixed;

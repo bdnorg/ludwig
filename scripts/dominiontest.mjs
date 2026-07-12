@@ -60,7 +60,7 @@ for (let i = 0; i < 5; i++) {
 }
 await settle();
 s = await state();
-const hand = Object.values(s.entities).find((e) => e.kind === 'mat' && e.config.docked && e.config.ownerId);
+const hand = Object.values(s.entities).find((e) => e.kind === 'mat' && e.config.ownerId);
 const inHand = Object.values(s.entities).filter((e) => e.kind === 'card' && e.parent === hand.id);
 ok(inHand.length === 5, `drew opening hand of 5 (got ${inHand.length})`);
 const titles = inHand.map((c) => c.config.front.title);

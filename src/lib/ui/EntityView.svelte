@@ -52,9 +52,20 @@
     if (isRegion) return 'region';
     const pref = table.views[mat.id];
     if (pref && pref !== 'auto') return pref;
+    // 'count' privacy: non-owners get the count chip, not the backs
+    if (mat.config.privacy === 'count' && !canSeeFaces(mat, me)) return 'collapsed';
     if (mat.config.placement.type === 'fan') return canSeeFaces(mat, me) ? 'fan' : 'stack';
     return 'stack';
   });
+
+  // owned mats (hands, player boards) carry their owner's name
+  const matLabel = $derived(
+    mat
+      ? mat.config.ownerId
+        ? `${table.playerName(mat.config.ownerId)} · ${mat.config.label}`
+        : mat.config.label
+      : '',
+  );
 
   function cardFace(c: CardEntity) {
     return faceVisible(table.state, c, me) ? c.config.front : null;
@@ -90,7 +101,7 @@
         </MatRegion>
       {:else if view === 'collapsed'}
         <div class="chip" class:priv={isPrivileged}>
-          {mat.config.label}{#if showCount}&nbsp;· {items.length}{/if}
+          {matLabel}{#if showCount}&nbsp;· {items.length}{/if}
           {#if isPrivileged}<span class="eye">👁</span>{/if}
         </div>
       {:else if view === 'fan'}
@@ -113,7 +124,7 @@
             <div class="empty small">{mat.config.label}</div>
           {/if}
           {#if isPrivileged}<span class="eye badge-eye">👁</span>{/if}
-          <span class="label">{mat.config.label}</span>
+          <span class="label">{matLabel}</span>
         </div>
       {:else}
         <!-- stack -->
@@ -142,7 +153,7 @@
             {/if}
             {#if showCount}<span class="count">{items.length}</span>{/if}
             {#if isPrivileged}<span class="eye badge-eye">👁</span>{/if}
-            <span class="label">{mat.config.label}</span>
+            <span class="label">{matLabel}</span>
           {/if}
         </div>
       {/if}
@@ -180,6 +191,9 @@
         w={entity.config.w}
         h={entity.config.h}
       />
+    {/if}
+    {#if entity.annotation}
+      <span class="anno" title={entity.annotation}>📝</span>
     {/if}
   </div>
 {/if}
@@ -317,5 +331,15 @@
     left: -10px;
     z-index: 2;
     filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+  }
+  /* annotation marker: hover for the text, edit via the context menu */
+  .anno {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    z-index: 3;
+    font-size: 0.75rem;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+    cursor: help;
   }
 </style>

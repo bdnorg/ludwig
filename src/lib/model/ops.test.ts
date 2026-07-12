@@ -5,10 +5,14 @@ import {
   faceVisible,
   handIdFor,
   makeMat,
+  makeRootMat,
   matCards,
   matItems,
+  matLetters,
   matPresets,
+  privacyVisibility,
   privileged,
+  ROOT_MAT_ID,
 } from './mats';
 import { standardDeck } from './cards52';
 import * as ops from './ops';
@@ -219,5 +223,48 @@ describe('visibility (SPEC §10–11)', () => {
     });
     expect(canSeeFaces(m, 'bob')).toBe(true);
     expect(canSeeFaces(m, 'alice')).toBe(false);
+  });
+});
+
+describe('everything is a mat (SPEC §15)', () => {
+  it('privacy presets map onto the visibility spectrum', () => {
+    expect(privacyVisibility('public')).toEqual({ faces: 'public', count: 'public', existence: 'public' });
+    expect(privacyVisibility('backs')).toEqual({ faces: 'owner', count: 'public', existence: 'public' });
+    expect(privacyVisibility('count')).toEqual({ faces: 'owner', count: 'public', existence: 'public' });
+    expect(privacyVisibility('nothing')).toEqual({ faces: 'owner', count: 'owner', existence: 'owner' });
+  });
+
+  it('hands are ordinary on-table private mats, placed per-viewer', () => {
+    const peer = new TestPeer('a');
+    const hand = makeMat(peer.next(), { x: 10, y: 10, z: 0, rot: 0 }, matPresets.hand('alice'));
+    expect(hand.positioning).toBe('arbitrary');
+    expect(hand.config.privacy).toBe('backs');
+    expect(hand.config.visibility.faces).toBe('owner');
+    expect(hand.locked).toBe(false);
+    expect('docked' in hand.config).toBe(false);
+  });
+
+  it('the root mat is not a send-to target', () => {
+    const peer = new TestPeer('a');
+    peer.apply([{ t: 'put', entity: makeRootMat(peer.next()) }]);
+    const deck = makeMat(peer.next(), { x: 0, y: 0, z: 0, rot: 0 }, matPresets.deck());
+    peer.apply([{ t: 'put', entity: deck }]);
+    const letters = matLetters(peer.state);
+    expect(letters[ROOT_MAT_ID]).toBeUndefined();
+    expect(letters[deck.id]).toBe('d');
+  });
+
+  it('hex grids snap to the staggered lattice', () => {
+    const peer = new TestPeer('a');
+    const m = makeMat(peer.next(), { x: 0, y: 0, z: 0, rot: 0 }, {
+      label: 'Hex',
+      placement: { type: 'grid', grid: { size: 40, hex: true } },
+    });
+    // dy = 35; y=30 rounds to row 1 (offset row): x snaps to 20 + n·40
+    const s = ops.snapPos(m, { x: 57, y: 30, z: 0, rot: 0 });
+    expect([s.x, s.y]).toEqual([60, 35]);
+    // even rows sit on the unshifted lattice
+    const s2 = ops.snapPos(m, { x: 57, y: 5, z: 0, rot: 0 });
+    expect([s2.x, s2.y]).toEqual([40, 0]);
   });
 });

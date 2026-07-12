@@ -44,7 +44,13 @@
   }
 </script>
 
-<div class="region" class:priv={privileged} style:width="{w}px" style:height="{h}px">
+<div
+  class="region"
+  class:priv={privileged}
+  style:width="{w}px"
+  style:height="{h}px"
+  style:background={mat.config.color ?? undefined}
+>
   {#if mat.config.image}
     <img class="bg" src={mat.config.image} alt={mat.config.label} draggable="false" />
   {/if}
@@ -53,11 +59,22 @@
       <span class="slot" style:left="{slot.x}px" style:top="{slot.y}px"></span>
     {/each}
   {/if}
-  {#if mat.config.placement.type === 'grid'}
+  {#if mat.config.placement.type === 'grid' && !mat.config.placement.grid?.hex}
     <div
       class="gridlines"
       style:background-size="{mat.config.placement.grid?.size ?? 40}px {mat.config.placement.grid
         ?.size ?? 40}px"
+    ></div>
+  {/if}
+  {#if mat.config.placement.type === 'grid' && mat.config.placement.grid?.hex}
+    {@const g = mat.config.placement.grid.size}
+    {@const dy = Math.round(g * 0.866)}
+    {@const dot = 'radial-gradient(circle 2px, rgba(255,255,255,0.25) 98%, transparent)'}
+    <div
+      class="hexdots"
+      style:background-size="{g}px {2 * dy}px"
+      style:background-image={`${dot}, ${dot}`}
+      style:background-position="0 0, {g / 2}px {dy}px"
     ></div>
   {/if}
   <span class="label">
@@ -113,6 +130,12 @@
     background-image:
       linear-gradient(to right, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
       linear-gradient(to bottom, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+    pointer-events: none;
+    border-radius: 8px;
+  }
+  .hexdots {
+    position: absolute;
+    inset: 0;
     pointer-events: none;
     border-radius: 8px;
   }

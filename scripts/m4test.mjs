@@ -26,10 +26,12 @@ const finders = {
   scoreboard: (s) => Object.values(s.entities).find((e) => e.kind === 'scoreboard'),
   timer: (s) => Object.values(s.entities).find((e) => e.kind === 'timer'),
   zone: (s) =>
-    Object.values(s.entities).find((e) => e.kind === 'mat' && e.config.placement.type === 'free'),
+    Object.values(s.entities).find(
+      (e) => e.kind === 'mat' && e.config.placement.type === 'free' && e.id !== 'mat_table',
+    ),
   deck: (s) =>
     Object.values(s.entities).find(
-      (e) => e.kind === 'mat' && e.config.placement.type === 'stack' && !e.config.docked,
+      (e) => e.kind === 'mat' && e.config.placement.type === 'stack',
     ),
 };
 const find = (s, kind) => finders[kind](s);
@@ -201,7 +203,9 @@ await page.mouse.move(deck.pos.x + 36, deck.pos.y + 50 + TOOLBAR);
 await page.keyboard.press('d');
 await settle();
 s = await state();
-const hand = Object.values(s.entities).find((e) => e.kind === 'mat' && e.config.docked);
+const hand = Object.values(s.entities).find(
+  (e) => e.kind === 'mat' && e.config.ownerId === 'p_tester',
+);
 ok(
   Object.values(s.entities).filter((e) => e.parent === hand.id).length === 1,
   'pressed d over the deck: drew to hand',
@@ -238,14 +242,22 @@ ok(
 );
 await page.keyboard.press('Escape');
 
-// M7: visibility change writes to the shared log
+// M7/M11: privacy changes go through the Mat settings dialog and hit the log
+// (the deck starts as backs — nobody sees faces; open it up to everyone)
 await page.mouse.click(deck.pos.x + 36, deck.pos.y + 50 + TOOLBAR, { button: 'right' });
-await page.locator('.menu button', { hasText: 'Faces:' }).first().click();
+await page.click('.menu button:has-text("Mat settings")');
+await page.selectOption('[data-field="privacy"]', 'public');
+await page.click('.dialog button:has-text("Save")');
 await settle();
 s = await state();
+const deckAfterVis = Object.values(s.entities).find((e) => e.id === deck.id);
+ok(
+  deckAfterVis.config.visibility.faces === 'public' && deckAfterVis.config.privacy === 'public',
+  'settings dialog opened the deck faces to everyone',
+);
 const logTexts = Object.values(s.log ?? {}).map((e) => e.text);
 ok(
-  logTexts.some((t) => t.includes('faces visible to')),
+  logTexts.some((t) => t.includes('faces visible to everyone')),
   `visibility change logged: "${logTexts[0] ?? ''}"`,
 );
 
@@ -315,6 +327,50 @@ const orderAfter = Object.values(s.entities).find(
 ok(
   orderAfter[orderAfter.length - 1] === orderBefore[0] && orderAfter.length === 2,
   `tray drag reordered the hand (${orderBefore.join()} → ${orderAfter.join()})`,
+);
+
+// M11: annotations live on any entity (📝 via the context menu)
+s = await state();
+const diceEnt = find(s, 'dice');
+page.once('dialog', (d) => d.accept('roll me at dawn'));
+await page.mouse.click(diceEnt.pos.x + 20, diceEnt.pos.y + 20 + TOOLBAR, { button: 'right' });
+await page.click('.menu button:has-text("Annotation")');
+await settle();
+s = await state();
+ok(find(s, 'dice').annotation === 'roll me at dawn', 'annotation stored on the dice');
+
+// M11: unpin my hand — it appears on the table as an ordinary fan mat
+await page.click('.tray .pinmat button:has-text("unpin")');
+await page.waitForTimeout(300);
+const handOnTable = await page.evaluate(() => !!document.querySelector('[data-entity-id^="hand_"]'));
+const trayGone = await page.evaluate(() => !document.querySelector('.tray'));
+ok(handOnTable && trayGone, 'unpinned hand renders on the table; tray hides');
+const bb = await page.locator('[data-entity-id^="hand_"]').boundingBox();
+await page.mouse.click(bb.x + 12, bb.y + 8, { button: 'right' });
+await page.click('.menu button:has-text("Pin to my tray")');
+await page.waitForTimeout(300);
+ok(
+  await page.evaluate(() => !!document.querySelector('.tray .pinmat')),
+  'pinned the hand back into the tray',
+);
+
+// M11: the table root is a mat — right-click the felt for its settings
+s = await state();
+ok(!!s.entities['mat_table'], 'root table mat exists');
+await page.mouse.click(420, 180 + TOOLBAR, { button: 'right' });
+await page.click('.menu button:has-text("Table settings")');
+await page.selectOption('[data-field="placement"]', 'hexgrid');
+await page.click('.dialog button:has-text("Save")');
+await settle();
+s = await state();
+const rootAfter = s.entities['mat_table'];
+ok(
+  rootAfter.config.placement.type === 'grid' && rootAfter.config.placement.grid.hex === true,
+  'felt gained a hex grid via Table settings',
+);
+ok(
+  await page.evaluate(() => !!document.querySelector('.feltgrid')),
+  'hex grid renders on the felt',
 );
 
 await browser.close();

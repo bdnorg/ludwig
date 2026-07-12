@@ -12,7 +12,7 @@ import {
   mergeSnapshot,
 } from '../model/reducers';
 import type { OpCtx } from '../model/ops';
-import { handIdFor, makeMat, matPresets } from '../model/mats';
+import { handIdFor, makeMat, makeRootMat, matPresets, ROOT_MAT_ID, rootMat } from '../model/mats';
 import { newId } from '../model/types';
 import { bindTab, loadPlayer } from './player';
 import { loadTable, saveTable } from './persist';
@@ -47,6 +47,9 @@ export class TableStore implements OpCtx {
   pointers = $state<Record<string, PointerState>>({});
   /** LOCAL view preferences per mat — never synced (SPEC §11) */
   views = $state<Record<string, ViewMode>>({});
+  /** LOCAL pins: mats shown in MY tray (SPEC §15 — docking is a per-viewer
+   *  view preference, not entity state). My hand is pinned by default. */
+  pins = $state<Record<string, boolean>>({});
   /** LOCAL placements for positioning:'arbitrary' entities — never synced;
    *  the shared pos is just the default starting point */
   posOverrides = $state<Record<string, { x: number; y: number; z: number }>>({});
@@ -81,10 +84,16 @@ export class TableStore implements OpCtx {
       this.views = {};
     }
     try {
+      this.pins = JSON.parse(localStorage.getItem(`ludwig:pins:${room}`) ?? '{}');
+    } catch {
+      this.pins = {};
+    }
+    try {
       this.posOverrides = JSON.parse(localStorage.getItem(`ludwig:pos:${room}`) ?? '{}');
     } catch {
       this.posOverrides = {};
     }
+    this.ensureRoot();
     this.ensureHand();
   }
 
@@ -92,6 +101,16 @@ export class TableStore implements OpCtx {
     if (mode === 'auto') delete this.views[matId];
     else this.views[matId] = mode;
     localStorage.setItem(`ludwig:views:${this.room}`, JSON.stringify(this.views));
+  }
+
+  /** Is this mat pinned to MY tray? (local; my hand defaults to pinned) */
+  isPinned(matId: string): boolean {
+    return this.pins[matId] ?? matId === handIdFor(this.me.id);
+  }
+
+  setPin(matId: string, pinned: boolean): void {
+    this.pins[matId] = pinned;
+    localStorage.setItem(`ludwig:pins:${this.room}`, JSON.stringify(this.pins));
   }
 
   setPosOverride(id: string, pos: { x: number; y: number; z: number } | null): void {
@@ -236,10 +255,25 @@ export class TableStore implements OpCtx {
     return this.state.entities[handIdFor(this.me.id)] as MatEntity;
   }
 
+  /** The table itself is a mat (SPEC §15): deterministic id, so every peer
+   *  ensures the same entity and LWW converges the copies. */
+  ensureRoot(): void {
+    if (this.state.entities[ROOT_MAT_ID]) return;
+    this.emit([{ t: 'put', entity: makeRootMat(this.next()) }]); // setup, not undoable
+  }
+
+  root(): MatEntity | undefined {
+    return rootMat(this.state);
+  }
+
   ensureHand(): void {
     const id = handIdFor(this.me.id);
     if (this.state.entities[id]) return;
-    const hand = makeMat(this.next(), { x: 0, y: 0, z: 0, rot: 0 }, matPresets.hand(this.me.id));
+    // default spot spread by a stable hash of the player id; positioning is
+    // arbitrary, so every viewer is free to move it locally anyway
+    const slot = [...this.me.id].reduce((n, c) => n + c.charCodeAt(0), 0) % 4;
+    const pos = { x: 180 + slot * 300, y: 500, z: this.maxZ() + 1, rot: 0 };
+    const hand = makeMat(this.next(), pos, matPresets.hand(this.me.id));
     this.emit([{ t: 'put', entity: hand }]); // setup, not undoable
   }
 

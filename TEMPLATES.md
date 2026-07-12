@@ -5,13 +5,12 @@ and two JSON formats let you capture and share them.
 
 ## Table templates
 
-A template is a saved table: decks, zones, tokens, notes — everything except
-players' hands. To make one:
+A template is an ordinary saved table — no special format, no stripping. To
+make one:
 
-1. Set up a table the way the game starts (supply piles, zones, scoreboard…).
-2. Click **save template** in the toolbar. Hands are stripped (their owners
-   won't exist at the next table); any cards that were in hands are laid out
-   face down above the table origin so nothing is lost.
+1. Set up a table the way the game starts (supply piles, zones, scoreboard…),
+   **before dealing** anything into hands.
+2. Click **export** in the toolbar.
 3. Anyone can load it into a **fresh** table with **import**. The import is
    broadcast, so one player importing sets the table for everyone.
 
@@ -54,4 +53,4 @@ Limits: every card needs a `title`; `count` is 1–200; 1000 cards max per set.
 See [examples/cardset-example.json](examples/cardset-example.json).
 
 Tip: import several sets side by side (one deck each) to build supply piles,
-then **save template** to capture the whole layout for next time.
+then **export** to capture the whole layout for next time.

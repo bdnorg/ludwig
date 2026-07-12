@@ -7,13 +7,11 @@
     onAddMenu,
     onImport,
     onExport,
-    onExportTemplate,
     onUndo,
   }: {
     onAddMenu: (e: MouseEvent) => void;
     onImport: (file: File) => void;
     onExport: () => void;
-    onExportTemplate: () => void;
     onUndo: () => void;
   } = $props();
 
@@ -50,10 +48,9 @@
   </button>
 
   <span class="spacer"></span>
-  <button class="tinybtn" onclick={onExportTemplate} title="export without hands, for reuse">
-    save template
+  <button class="tinybtn" onclick={onExport} title="save the table as a file — a save doubles as a template">
+    export
   </button>
-  <button class="tinybtn" onclick={onExport}>export</button>
   <button class="tinybtn" onclick={() => fileInput.click()}>import</button>
   <input
     type="file"

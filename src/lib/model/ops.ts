@@ -63,6 +63,13 @@ export function snapPos(mat: MatEntity, pos: Pos, item?: Entity): Pos {
   const p = mat.config.placement;
   if (p.type === 'grid' && p.grid) {
     const g = p.grid.size;
+    if (p.grid.hex) {
+      // staggered hex-center lattice: rows every 0.866·g, odd rows offset g/2
+      const dy = Math.round(g * 0.866);
+      const row = Math.round(pos.y / dy);
+      const xoff = row % 2 ? g / 2 : 0;
+      return { ...pos, x: Math.round((pos.x - xoff) / g) * g + xoff, y: row * dy };
+    }
     return { ...pos, x: Math.round(pos.x / g) * g, y: Math.round(pos.y / g) * g };
   }
   if (p.type === 'slots' && p.slots?.length) {

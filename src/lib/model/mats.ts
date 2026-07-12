@@ -10,6 +10,7 @@ import type {
   CardEntity,
   Entity,
   MatEntity,
+  MatPrivacy,
   MatVisibility,
   Pos,
   Version,
@@ -109,6 +110,15 @@ export function describeRule(rule: VisibilityRule): string {
   return rule.length === 1 ? '1 chosen player' : `${rule.length} chosen players`;
 }
 
+// ---- privacy presets (SPEC §15) ------------------------------------------
+
+/** The visibility spectrum each preset stands for. */
+export function privacyVisibility(p: MatPrivacy): MatVisibility {
+  if (p === 'public') return { faces: 'public', count: 'public', existence: 'public' };
+  if (p === 'nothing') return { faces: 'owner', count: 'owner', existence: 'owner' };
+  return { faces: 'owner', count: 'public', existence: 'public' }; // backs | count
+}
+
 // ---- factories -----------------------------------------------------------
 
 export const VIS_PUBLIC: MatVisibility = { faces: 'public', count: 'public', existence: 'public' };
@@ -119,10 +129,12 @@ export interface MatOpts {
   placement?: MatEntity['config']['placement'];
   faceDefault?: 'up' | 'down' | 'keep';
   visibility?: Partial<MatVisibility>;
+  privacy?: MatPrivacy;
   ownerId?: string | null;
   image?: string | null;
+  color?: string | null;
   size?: { w: number; h: number } | null;
-  docked?: boolean;
+  positioning?: 'absolute' | 'arbitrary';
   locked?: boolean;
   order?: string[];
 }
@@ -134,6 +146,7 @@ export function makeMat(version: Version, pos: Pos, o: MatOpts): MatEntity {
     version,
     parent: null,
     pos,
+    positioning: o.positioning,
     locked: o.locked ?? false,
     config: {
       label: o.label,
@@ -141,10 +154,14 @@ export function makeMat(version: Version, pos: Pos, o: MatOpts): MatEntity {
       ownerId: o.ownerId ?? null,
       placement: o.placement ?? { type: 'stack' },
       faceDefault: o.faceDefault ?? 'keep',
-      visibility: { ...VIS_PUBLIC, ...o.visibility },
+      visibility: {
+        ...(o.privacy ? privacyVisibility(o.privacy) : VIS_PUBLIC),
+        ...o.visibility,
+      },
+      privacy: o.privacy,
       image: o.image ?? null,
+      color: o.color ?? null,
       size: o.size ?? null,
-      docked: o.docked ?? false,
     },
     state: { order: o.order ?? [] },
   };
@@ -164,15 +181,16 @@ export const matPresets = {
     faceDefault: 'up',
     visibility: { faces: 'public' },
   }),
+  // a hand is an ORDINARY private mat on the table (SPEC §15): each viewer
+  // places it locally (arbitrary positioning); the tray is a pinned view
   hand: (ownerId: string): MatOpts => ({
     id: handIdFor(ownerId),
     label: 'Hand',
     ownerId,
     placement: { type: 'fan' },
     faceDefault: 'down',
-    visibility: { faces: 'owner' },
-    docked: true,
-    locked: true,
+    privacy: 'backs',
+    positioning: 'arbitrary',
   }),
   zone: (label = 'Zone', faceDefault: 'up' | 'down' | 'keep' = 'keep'): MatOpts => ({
     label,
@@ -188,15 +206,36 @@ export function handIdFor(playerId: string): string {
   return `hand_${playerId}`;
 }
 
+// ---- the root mat: the table itself (SPEC §15) ----------------------------
+// `parent: null` means "in the root mat". The root mat entity carries the
+// felt's configuration (color, grid, entry rules) and is right-clickable,
+// but renders as the table surface, never as an entity on it.
+
+export const ROOT_MAT_ID = 'mat_table';
+
+export function makeRootMat(version: Version): MatEntity {
+  return makeMat(version, { x: 0, y: 0, z: 0, rot: 0 }, {
+    id: ROOT_MAT_ID,
+    label: 'Table',
+    placement: { type: 'free' },
+    locked: true,
+  });
+}
+
+export function rootMat(s: TableState): MatEntity | undefined {
+  return getMat(s, ROOT_MAT_ID);
+}
+
 export function handOf(s: TableState, playerId: string): MatEntity | undefined {
   return getMat(s, handIdFor(playerId));
 }
 
 /** Deterministic keyboard letters: prefer the label's first letter, else the
- *  next free a–z, assigned in id order — same result on every peer, no sync. */
+ *  next free a–z, assigned in id order — same result on every peer, no sync.
+ *  The root mat is not a send-to target (that move is "to the table"). */
 export function matLetters(s: TableState): Record<string, string> {
   const mats = Object.values(s.entities)
-    .filter((e): e is MatEntity => e.kind === 'mat')
+    .filter((e): e is MatEntity => e.kind === 'mat' && e.id !== ROOT_MAT_ID)
     .sort((a, b) => (a.id < b.id ? -1 : 1));
   const used = new Set<string>();
   const out: Record<string, string> = {};

@@ -53,7 +53,10 @@ timers, zones, and notes — or import your own card set / saved template
 | Keyboard verbs | d draw · f flip · r shuffle/roll · h to hand · x delete |
 | Send to a mat | s, then the mat's letter (badges appear) |
 | Change my view of a mat | right-click → "My view" (fan/stack/collapsed) |
-| Change visibility | right-click a mat → Faces/Count (changes are logged) |
+| Mat label / color / grid / privacy | right-click a mat → Mat settings… (changes are logged) |
+| Felt color, table grid, entry rules | right-click the felt → Table settings… |
+| Pin a mat to your tray / unpin | right-click a mat (hands start pinned) |
+| Annotate anything | right-click → Annotation… (📝 badge; hover to read) |
 | Reveal your hand | "reveal all" in the hand tray |
 | Roll dice | double-click them |
 | Split a chip stack | right-click → Take 1 / Split stack… |

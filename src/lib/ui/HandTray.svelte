@@ -1,42 +1,87 @@
 <script lang="ts">
+  // The tray is a LOCAL pinned view of ordinary mats (SPEC §15) — usually my
+  // hand, but any mat can be pinned. It owns no objects: every card here is
+  // an entity in a mat that also lives on the table.
+  import type { MatEntity } from '../model/types';
   import { table } from '../state/store.svelte';
-  import { describeRule, matCards } from '../model/mats';
+  import {
+    canSeeExistence,
+    describeRule,
+    faceVisible,
+    matCards,
+    privileged,
+  } from '../model/mats';
   import CardFaceView from './CardFaceView.svelte';
 
-  let { onCardGrab }: { onCardGrab: (e: PointerEvent, cardId: string) => void } = $props();
+  let {
+    onCardGrab,
+  }: { onCardGrab: (e: PointerEvent, cardId: string, matId: string) => void } = $props();
 
-  const hand = $derived(table.myHand());
-  const cards = $derived(matCards(table.state, hand));
-  const revealed = $derived(hand.config.visibility.faces === 'public');
+  const me = $derived(table.me.id);
+  const pinned = $derived(
+    Object.values(table.state.entities).filter(
+      (e): e is MatEntity => e.kind === 'mat' && table.isPinned(e.id) && canSeeExistence(e, me),
+    ),
+  );
+  const connectedIds = $derived([...new Set([me, ...Object.values(table.peers)])]);
 
-  function toggleReveal() {
-    const rule = revealed ? 'owner' : 'public';
-    table.update(hand, (h) => {
-      h.config.visibility.faces = rule;
+  function toggleReveal(mat: MatEntity) {
+    const rule = mat.config.visibility.faces === 'public' ? 'owner' : 'public';
+    table.update(mat, (m) => {
+      m.config.visibility.faces = rule;
+      m.config.privacy = rule === 'public' ? 'public' : 'backs';
     });
     table.logMsg(
-      `${table.playerName(table.me.id)} set “Hand” faces visible to ${describeRule(rule)}`,
+      `${table.playerName(me)} set “${mat.config.label}” faces visible to ${describeRule(rule)}`,
     );
   }
 </script>
 
-<div class="tray" class:priv={!revealed} data-drop="tray">
-  <div class="side">
-    <span class="title">your hand {revealed ? '' : '👁'}</span>
-    <button class="tiny" onclick={toggleReveal}>{revealed ? 'conceal' : 'reveal all'}</button>
-    {#if revealed}<span class="warn">visible to everyone</span>{/if}
-  </div>
-  <div class="cards">
-    {#each cards as card (card.id)}
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="slot" data-card-id={card.id} onpointerdown={(e) => onCardGrab(e, card.id)}>
-        <CardFaceView face={card.config.front} w={card.config.w} h={card.config.h} />
+{#if pinned.length > 0}
+  <div class="tray" data-drop="tray">
+    {#each pinned as mat (mat.id)}
+      {@const cards = matCards(table.state, mat)}
+      {@const priv = privileged(mat, me, connectedIds)}
+      {@const revealed = mat.config.visibility.faces === 'public'}
+      <div class="pinmat" class:priv data-tray-mat={mat.id}>
+        <div class="side">
+          <span class="title">
+            {mat.config.ownerId === me ? 'your' : ''}
+            {mat.config.label}
+            {#if priv}👁{/if}
+          </span>
+          {#if mat.config.ownerId === me}
+            <button class="tiny" onclick={() => toggleReveal(mat)}>
+              {revealed ? 'conceal' : 'reveal all'}
+            </button>
+            {#if revealed}<span class="warn">visible to everyone</span>{/if}
+          {/if}
+          <button class="tiny" title="show on the table instead" onclick={() => table.setPin(mat.id, false)}>
+            unpin
+          </button>
+        </div>
+        <div class="cards">
+          {#each cards as card (card.id)}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+              class="slot"
+              data-card-id={card.id}
+              onpointerdown={(e) => onCardGrab(e, card.id, mat.id)}
+            >
+              <CardFaceView
+                face={faceVisible(table.state, card, me) ? card.config.front : null}
+                w={card.config.w}
+                h={card.config.h}
+              />
+            </div>
+          {:else}
+            <span class="hint">drag cards here, or draw from a deck — drag out to play (⇧ flips)</span>
+          {/each}
+        </div>
       </div>
-    {:else}
-      <span class="hint">drag cards here, or draw from a deck — drag out to play (⇧ flips)</span>
     {/each}
   </div>
-</div>
+{/if}
 
 <style>
   .tray {
@@ -44,8 +89,14 @@
     left: 50%;
     transform: translateX(-50%);
     bottom: 0;
+    max-width: 94%;
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    z-index: 200000;
+  }
+  .pinmat {
     min-width: 340px;
-    max-width: 90%;
     background: rgba(30, 34, 43, 0.92);
     border: 1px solid #454f60;
     border-bottom: none;
@@ -54,10 +105,9 @@
     display: flex;
     gap: 14px;
     align-items: center;
-    z-index: 200000;
   }
   /* privileged view: only I can see these faces (SPEC §11) */
-  .tray.priv {
+  .pinmat.priv {
     border-color: color-mix(in srgb, var(--accent) 60%, #454f60);
     border-style: dashed;
   }

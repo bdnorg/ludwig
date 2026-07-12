@@ -3,6 +3,24 @@ import { emptyTable } from '../model/reducers';
 
 const key = (room: string) => `ludwig:table:${room}`;
 
+/** Pre-M11 saves had hands as hidden `docked` mats pinned to chrome; they
+ *  are ordinary on-table private mats now (SPEC §15). */
+function migrate(s: TableState): TableState {
+  for (const e of Object.values(s.entities)) {
+    if (e.kind !== 'mat') continue;
+    const cfg = e.config as { docked?: boolean } & typeof e.config;
+    if (!cfg.docked) continue;
+    delete cfg.docked;
+    if (cfg.ownerId) {
+      e.positioning = 'arbitrary';
+      e.locked = false;
+      cfg.privacy ??= 'backs';
+      if (e.pos.x === 0 && e.pos.y === 0) e.pos = { x: 220, y: 480, z: e.pos.z, rot: 0 };
+    }
+  }
+  return s;
+}
+
 export function loadTable(room: string): TableState {
   try {
     const raw = localStorage.getItem(key(room));
@@ -10,7 +28,7 @@ export function loadTable(room: string): TableState {
       const s = JSON.parse(raw) as TableState;
       if (s && s.entities && s.tombstones) {
         s.log ??= {};
-        return s;
+        return migrate(s);
       }
     }
   } catch {
@@ -77,7 +95,7 @@ export function listTables(): TableListing[] {
 }
 
 export function deleteTable(room: string): void {
-  for (const k of [`ludwig:table:${room}`, `ludwig:meta:${room}`, `ludwig:views:${room}`, `ludwig:pos:${room}`])
+  for (const k of [`ludwig:table:${room}`, `ludwig:meta:${room}`, `ludwig:views:${room}`, `ludwig:pins:${room}`, `ludwig:pos:${room}`])
     localStorage.removeItem(k);
 }
 
@@ -90,32 +108,8 @@ function download(name: string, data: unknown): void {
   URL.revokeObjectURL(a.href);
 }
 
+/** Templates are ordinary saves (SPEC §15): export the table as-is — save
+ *  before dealing and you have a template. No special stripping. */
 export function exportTable(room: string, s: TableState): void {
   download(`ludwig-${room}.json`, s);
-}
-
-/** Export as a reusable template: hands are dropped (their owners won't
- *  exist at the next table) and any cards they held are laid out face down;
- *  tombstones are cleared and versions reset so imports merge cleanly. */
-export function exportTemplate(room: string, s: TableState): void {
-  const t: TableState = JSON.parse(JSON.stringify(s));
-  t.tombstones = {};
-  t.log = {};
-  const handIds = new Set(
-    Object.values(t.entities)
-      .filter((e) => e.kind === 'mat' && e.config.ownerId !== null && e.config.docked)
-      .map((e) => e.id),
-  );
-  for (const id of handIds) delete t.entities[id];
-  let i = 0;
-  for (const e of Object.values(t.entities)) {
-    e.version = { clock: 1, actor: 'template' };
-    if (e.kind === 'card' && e.parent !== null && handIds.has(e.parent)) {
-      e.parent = null;
-      e.state.faceUp = false;
-      e.pos = { x: 40 + (i % 8) * 80, y: -140, z: i, rot: 0 };
-      i++;
-    }
-  }
-  download(`ludwig-template-${room}.json`, t);
 }

@@ -5,6 +5,7 @@
 import { standardDeck } from '../model/cards52';
 import { dominionTable } from '../model/dominion';
 import { catanTable } from '../model/catan';
+import { ROOT_MAT_ID } from '../model/mats';
 import type { TableStore } from './store.svelte';
 
 const KEY = 'ludwig:pending-template';
@@ -26,10 +27,10 @@ export function applyPendingTemplate(store: TableStore): void {
   const id = sessionStorage.getItem(KEY);
   if (!id) return;
   sessionStorage.removeItem(KEY);
-  // never stamp a template over a table that already has content (hands are
-  // docked owner-mats created automatically, so they don't count)
+  // never stamp a template over a table that already has content (the root
+  // mat and hands are created automatically, so they don't count)
   const hasContent = Object.values(store.state.entities).some(
-    (e) => !(e.kind === 'mat' && e.config.docked && e.config.ownerId !== null),
+    (e) => !(e.kind === 'mat' && (e.config.ownerId !== null || e.id === ROOT_MAT_ID)),
   );
   if (hasContent) return;
   if (id === 'cards52')

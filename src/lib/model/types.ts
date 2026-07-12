@@ -28,6 +28,8 @@ interface Base<K extends string, C, S> {
    *  it locally and moves never sync (SPEC §10). */
   positioning?: 'absolute' | 'arbitrary';
   locked: boolean;
+  /** freeform sticky text on any entity (📝 badge, SPEC §15) */
+  annotation?: string;
   config: C;
   state: S;
 }
@@ -69,9 +71,15 @@ export interface SlotDef {
 
 export interface MatPlacement {
   type: 'free' | 'grid' | 'slots' | 'stack' | 'fan';
-  grid?: { size: number };
+  grid?: { size: number; hex?: boolean }; // hex: staggered hex-center lattice
   slots?: SlotDef[];
 }
+
+/** Non-owner presentation of a private mat (SPEC §15): a preset layer over
+ *  the faces/count/existence spectrum, which remains underneath for gamebox
+ *  authors. 'backs' shows the pile/fan of backs, 'count' just a count chip,
+ *  'nothing' hides the mat entirely. */
+export type MatPrivacy = 'public' | 'backs' | 'count' | 'nothing';
 
 /** How a viewer renders a mat — local preference, never synced (SPEC §11). */
 export type ViewMode = 'auto' | 'stack' | 'fan' | 'collapsed';
@@ -88,11 +96,14 @@ export type MatEntity = Base<
     /** applied to cards when they ENTER the mat (never while moving within) */
     faceDefault: 'up' | 'down' | 'keep';
     visibility: MatVisibility;
+    /** the preset the visibility spectrum was last set from (drives the
+     *  non-owner rendering: backs vs count chip) */
+    privacy?: MatPrivacy;
     image: string | null;
+    /** surface tint for region mats (and the felt, on the root mat) */
+    color?: string | null;
     /** extent for free/grid/slots mats; null for stack/fan (auto-size) */
     size: { w: number; h: number } | null;
-    /** docked mats (hands, the game mat) render in chrome, not on the table */
-    docked: boolean;
   },
   {
     /** stack/fan order, index 0 = top; membership authority is child.parent */
