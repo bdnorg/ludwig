@@ -6,7 +6,9 @@
       title: 'The table',
       rows: [
         ['Move anything', 'drag it'],
-        ['Pan / zoom', 'drag the felt / scroll wheel'],
+        ['Pan / zoom', '⇧-drag or middle-drag the felt / scroll wheel'],
+        ['Select several things', '⌘/Ctrl-click, or rubber-band drag on the felt'],
+        ['Act on a selection', 'drag any member to move all · f flips all · x deletes all'],
         ['Undo your last action', '⌘Z / Ctrl-Z or the toolbar button'],
         ['Bring to front / send to back', '] / ['],
         ['Table settings (felt color, grid, entry rules)', 'right-click the felt'],
@@ -18,7 +20,7 @@
       title: 'Cards & mats',
       rows: [
         ['Take the top card of a deck', 'drag it off the pile'],
-        ['Move a whole deck', '⌥/Alt-drag it'],
+        ['Move a whole deck or mat', 'hover it, grab a side handle'],
         ['Draw to your hand', 'double-click a deck (or press d)'],
         ['Flip a card', 'double-click it (or press f)'],
         ['Play from your hand', 'drag out of the tray — ⇧ plays face down'],
@@ -37,7 +39,7 @@
         ['Command palette', 'Space — lists every action for what you point at'],
         ['Roll dice', 'double-click them (or press r)'],
         ['Split / merge chip stacks', 'drag one chip off · drop a stack onto a match'],
-        ['Take one piece off a token stack', 'drag it (⌥-drag moves the whole stack)'],
+        ['Take one piece off a token stack', 'drag it (side handles move the whole stack)'],
         ['Board slots (Catan)', 'pieces snap to matching hex/corner/edge slots'],
         ['Quick actions (deal, gather…)', 'template-defined buttons, top left'],
         ['Arrange something just for yourself', 'right-click → Position: my view only'],

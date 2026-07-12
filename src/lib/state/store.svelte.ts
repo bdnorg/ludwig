@@ -55,8 +55,11 @@ export class TableStore implements OpCtx {
   posOverrides = $state<Record<string, { x: number; y: number; z: number }>>({});
   /** current table zoom, published by the Table component for pointer math */
   uiScale = $state(1);
-  /** a needsMat action is waiting for a mat letter (shows letter badges) */
-  pendingSend = $state<{ actionId: string; selId: string } | null>(null);
+  /** a needsMat action is waiting for a mat letter (shows letter badges);
+   *  applies to the whole selection it was invoked with */
+  pendingSend = $state<{ actionId: string; selIds: string[] } | null>(null);
+  /** LOCAL selection — ids of selected entities, never synced */
+  selected = $state<string[]>([]);
 
   me: PlayerInfo = $state(loadPlayer());
   net: NetLink | null = null;
@@ -76,6 +79,7 @@ export class TableStore implements OpCtx {
     this.peers = {};
     this.dragPos = {};
     this.pointers = {};
+    this.selected = [];
     this.undoStack = [];
     this.undoDepth = 0;
     try {
@@ -101,6 +105,21 @@ export class TableStore implements OpCtx {
     if (mode === 'auto') delete this.views[matId];
     else this.views[matId] = mode;
     localStorage.setItem(`ludwig:views:${this.room}`, JSON.stringify(this.views));
+  }
+
+  // ---- selection (local, SPEC v4 §1) ----
+  select(ids: string[]): void {
+    this.selected = ids;
+  }
+
+  toggleSelect(id: string): void {
+    this.selected = this.selected.includes(id)
+      ? this.selected.filter((i) => i !== id)
+      : [...this.selected, id];
+  }
+
+  isSelected(id: string): boolean {
+    return this.selected.includes(id);
   }
 
   /** Is this mat pinned to MY tray? (local; my hand defaults to pinned) */

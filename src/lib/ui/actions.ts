@@ -2,10 +2,18 @@
 // surfaced four ways — hover buttons, context menu, command palette, keys.
 // `key` is a single-key chord; `needsMat: true` makes it a stateful sequence
 // (press the key, then a mat's letter chooses the target).
+//
+// Actions that declare a pure `muts` builder compose over a SELECTION
+// (PROPOSAL v4 §1): commitAll runs the builder per entity against a scratch
+// state (so shared targets like one hand accumulate) and commits ONE batch —
+// one undo reverses the whole motion.
 
-import type { Entity, MatEntity, Pos } from '../model/types';
+import type { CardEntity, DiceEntity, Entity, MatEntity, Pos } from '../model/types';
+import type { Mutation } from '../model/reducers';
+import { applyMutations } from '../model/reducers';
 import * as ops from '../model/ops';
-import { canSeeFaces, matItems, rootMat } from '../model/mats';
+import type { OpCtx } from '../model/ops';
+import { canSeeFaces, handIdFor, matItems, rootMat } from '../model/mats';
 import { runMacro } from '../model/macros';
 import { table } from '../state/store.svelte';
 
@@ -13,6 +21,8 @@ export interface RunArgs {
   mat?: MatEntity; // target for needsMat actions
   pos?: Pos;
 }
+
+export type MutsFn = (ctx: OpCtx, e: Entity, args?: RunArgs) => Mutation[];
 
 export interface UiAction {
   id: string;
@@ -22,6 +32,8 @@ export interface UiAction {
   needsMat?: boolean; // waits for a mat letter after the key
   /** in the hover strip? (otherwise menu/palette/key only) */
   hover?: boolean;
+  /** pure mutation builder — presence makes the action selection-capable */
+  muts?: MutsFn;
   appliesTo(sel: Entity): boolean;
   run(sel: Entity, args?: RunArgs): void;
 }
@@ -40,6 +52,61 @@ export const uiHooks: {
   spotBeside: () => ({ x: 0, y: 0, z: 0, rot: 0 }),
 };
 
+/** Run a muts builder over entities against a scratch snapshot, so steps
+ *  compose (five cards into one hand = one coherent order), then commit the
+ *  whole thing atomically. */
+export function commitAll(mutsFn: MutsFn, ents: Entity[], args?: RunArgs): void {
+  const scratch: OpCtx = {
+    state: table.snapshot(),
+    next: () => table.next(),
+    clone: (x) => structuredClone(x),
+  };
+  const all: Mutation[] = [];
+  for (const e0 of ents) {
+    const e = scratch.state.entities[e0.id];
+    if (!e) continue;
+    const muts = mutsFn(scratch, e, args);
+    applyMutations(scratch.state, muts);
+    all.push(...muts);
+  }
+  table.commit(all);
+}
+
+// ---- muts builders (shared by single-run and selection-run) --------------
+
+const flipMuts: MutsFn = (ctx, e) =>
+  e.kind === 'card' ? ops.flipCard(ctx, e as CardEntity) : ops.flipTop(ctx, e as MatEntity);
+
+const rollMuts: MutsFn = (ctx, e) =>
+  e.kind === 'dice' ? ops.rollDice(ctx, e as DiceEntity, table.me.id) : [];
+
+const toHandMuts: MutsFn = (ctx, e) => {
+  const hand = ctx.state.entities[handIdFor(table.me.id)];
+  return hand?.kind === 'mat' ? ops.moveToMat(ctx, e, hand) : [];
+};
+
+const sendMuts: MutsFn = (ctx, e, args) => {
+  const m = args?.mat ? ctx.state.entities[args.mat.id] : undefined;
+  if (m?.kind !== 'mat' || m.id === e.id) return [];
+  if (isMat(e)) {
+    // sending a stack sends its top item
+    const top = matItems(ctx.state, e)[0];
+    return top ? ops.moveToMat(ctx, top, m) : [];
+  }
+  return ops.moveToMat(ctx, e, m);
+};
+
+const shuffleMuts: MutsFn = (ctx, e) => (isMat(e) ? ops.shuffleMat(ctx, e) : []);
+
+const deleteMuts: MutsFn = (ctx, e) => ops.deleteEntity(ctx, e);
+
+const lockMuts: MutsFn = (ctx, e) => {
+  const d = ctx.clone(e);
+  d.locked = !d.locked;
+  d.version = ctx.next();
+  return [{ t: 'put', entity: d }];
+};
+
 export const ACTIONS: UiAction[] = [
   {
     id: 'draw',
@@ -56,12 +123,10 @@ export const ACTIONS: UiAction[] = [
     icon: '⇋',
     key: 'f',
     hover: true,
+    muts: flipMuts,
     appliesTo: (e) =>
       e.kind === 'card' || (isStackish(e) && matItems(table.state, e)[0]?.kind === 'card'),
-    run: (e) =>
-      table.commit(
-        e.kind === 'card' ? ops.flipCard(table, e) : ops.flipTop(table, e as MatEntity),
-      ),
+    run: (e) => commitAll(flipMuts, [e]),
   },
   {
     id: 'shuffle',
@@ -69,8 +134,9 @@ export const ACTIONS: UiAction[] = [
     icon: '🔀',
     key: 'r',
     hover: true,
+    muts: shuffleMuts,
     appliesTo: (e) => isStackish(e) && nonEmpty(e),
-    run: (e) => table.commit(ops.shuffleMat(table, e as MatEntity)),
+    run: (e) => commitAll(shuffleMuts, [e]),
   },
   {
     id: 'roll',
@@ -78,8 +144,9 @@ export const ACTIONS: UiAction[] = [
     icon: '⚄',
     key: 'r',
     hover: true,
+    muts: rollMuts,
     appliesTo: (e) => e.kind === 'dice',
-    run: (e) => table.commit(ops.rollDice(table, e as never, table.me.id)),
+    run: (e) => commitAll(rollMuts, [e]),
   },
   {
     id: 'to-hand',
@@ -87,8 +154,12 @@ export const ACTIONS: UiAction[] = [
     icon: '✋',
     key: 'h',
     hover: true,
+    muts: toHandMuts,
     appliesTo: (e) => e.kind === 'card',
-    run: (e) => table.commit(ops.moveToMat(table, e, table.myHand())),
+    run: (e) => {
+      table.myHand(); // ensure it exists before the snapshot
+      commitAll(toHandMuts, [e]);
+    },
   },
   {
     id: 'send',
@@ -96,17 +167,9 @@ export const ACTIONS: UiAction[] = [
     icon: '➤',
     key: 's',
     needsMat: true,
+    muts: sendMuts,
     appliesTo: (e) => !e.locked && (e.kind === 'card' || e.kind === 'token' || isStackish(e)),
-    run: (e, args) => {
-      if (!args?.mat || args.mat.id === e.id) return;
-      if (isMat(e)) {
-        // sending a stack sends its top item
-        const top = matItems(table.state, e)[0];
-        if (top) table.commit(ops.moveToMat(table, top, args.mat));
-        return;
-      }
-      table.commit(ops.moveToMat(table, e, args.mat));
-    },
+    run: (e, args) => commitAll(sendMuts, [e], args),
   },
   {
     id: 'draw-up',
@@ -167,24 +230,51 @@ export const ACTIONS: UiAction[] = [
     id: 'lock',
     label: 'Lock / unlock',
     key: 'l',
+    muts: lockMuts,
     appliesTo: () => true,
-    run: (e) =>
-      table.update(e, (d) => {
-        d.locked = !d.locked;
-      }),
+    run: (e) => commitAll(lockMuts, [e]),
   },
   {
     id: 'delete',
     label: 'Delete',
     key: 'x',
+    muts: deleteMuts,
     appliesTo: (e) => !e.locked,
-    run: (e) => table.commit(ops.deleteEntity(table, e)),
+    run: (e) => commitAll(deleteMuts, [e]),
   },
 ];
 
 export function actionsFor(sel: Entity | null): UiAction[] {
   if (!sel) return [];
   return ACTIONS.filter((a) => a.appliesTo(sel));
+}
+
+// ---- selection surface (PROPOSAL v4 §1) -----------------------------------
+
+export function selectionEntities(): Entity[] {
+  return table.selected.map((id) => table.get(id)).filter((e): e is Entity => !!e);
+}
+
+/** Actions valid for a whole selection: selection-capable (muts) and
+ *  applicable to every member. */
+export function actionsForSelection(ents: Entity[]): UiAction[] {
+  if (ents.length === 0) return [];
+  if (ents.length === 1) return actionsFor(ents[0]);
+  return ACTIONS.filter((a) => a.muts && ents.every((e) => a.appliesTo(e)));
+}
+
+/** One-click act-on-all compounds for a mat's menu ("Flip all 5 cards"),
+ *  derived from the registry — a selection shortcut, not per-kind code. */
+export function matCompoundItems(mat: MatEntity): Array<{ label: string; run: () => void }> {
+  const items = matItems(table.state, mat);
+  const out: Array<{ label: string; run: () => void }> = [];
+  const cards = items.filter((e) => e.kind === 'card');
+  if (cards.length > 1 && mat.config.placement.type !== 'stack')
+    out.push({ label: `Flip all ${cards.length} cards here`, run: () => commitAll(flipMuts, cards) });
+  const dice = items.filter((e) => e.kind === 'dice');
+  if (dice.length > 1)
+    out.push({ label: `Roll all ${dice.length} dice here`, run: () => commitAll(rollMuts, dice) });
+  return out;
 }
 
 /** Template-defined macros from the root mat, as registry actions (SPEC §15).
@@ -211,4 +301,9 @@ export function macroActions(): UiAction[] {
 export function actionForKey(key: string, sel: Entity | null): UiAction | undefined {
   if (!sel) return undefined;
   return ACTIONS.find((a) => a.key === key && a.appliesTo(sel));
+}
+
+/** Same, for a multi-selection: only selection-capable actions qualify. */
+export function actionForKeyMulti(key: string, ents: Entity[]): UiAction | undefined {
+  return ACTIONS.find((a) => a.key === key && a.muts && ents.every((e) => a.appliesTo(e)));
 }

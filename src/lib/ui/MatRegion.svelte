@@ -6,8 +6,15 @@
   let {
     mat,
     privileged,
+    onMove,
     children,
-  }: { mat: MatEntity; privileged: boolean; children: Snippet } = $props();
+  }: {
+    mat: MatEntity;
+    privileged: boolean;
+    /** side-handle drag: move the mat itself (PROPOSAL v4 §2) */
+    onMove: (e: PointerEvent) => void;
+    children: Snippet;
+  } = $props();
 
   // live size during a resize drag; committed on release
   let live = $state<{ w: number; h: number } | null>(null);
@@ -20,10 +27,10 @@
     if (e.button !== 0 || mat.locked) return;
     e.stopPropagation();
     start = { sx: e.clientX, sy: e.clientY, w, h };
-    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointermove', onResizeMove);
     window.addEventListener('pointerup', onUp);
   }
-  function onMove(e: PointerEvent) {
+  function onResizeMove(e: PointerEvent) {
     if (!start) return;
     const k = table.uiScale || 1;
     live = {
@@ -32,7 +39,7 @@
     };
   }
   function onUp() {
-    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointermove', onResizeMove);
     window.removeEventListener('pointerup', onUp);
     start = null;
     if (!live) return;
@@ -87,6 +94,16 @@
   {#if !mat.locked}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="handle" onpointerdown={beginResize} ondblclick={(e) => e.stopPropagation()}></div>
+    {#each ['n', 'e', 's', 'w'] as side (side)}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="mhandle h-{side}"
+        data-handle="move"
+        title="move the mat"
+        onpointerdown={onMove}
+        ondblclick={(e) => e.stopPropagation()}
+      ></div>
+    {/each}
   {/if}
 </div>
 
@@ -153,6 +170,7 @@
   .eye {
     text-transform: none;
   }
+  /* handles are invisible until the mat is hovered (PROPOSAL v4 §2) */
   .handle {
     position: absolute;
     right: -6px;
@@ -162,10 +180,46 @@
     border-radius: 4px;
     background: var(--accent);
     cursor: nwse-resize;
-    opacity: 0.6;
+    opacity: 0;
+    transition: opacity 0.1s;
     z-index: 2;
   }
-  .handle:hover {
+  .region:hover .handle {
+    opacity: 0.85;
+  }
+  .mhandle {
+    position: absolute;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: rgba(77, 163, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    cursor: move;
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 2;
+  }
+  .region:hover .mhandle {
     opacity: 1;
+  }
+  .h-n {
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .h-s {
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .h-e {
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .h-w {
+    left: -6px;
+    top: 50%;
+    transform: translateY(-50%);
   }
 </style>

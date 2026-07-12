@@ -22,7 +22,19 @@
   import { connect } from '../net/room';
   import { exportTable, loadMeta } from '../state/persist';
   import { applyPendingTemplate } from '../state/templates';
-  import { ACTIONS, actionsFor, actionForKey, macroActions, uiHooks, type UiAction } from './actions';
+  import type { Mutation } from '../model/reducers';
+  import {
+    ACTIONS,
+    actionsFor,
+    actionForKey,
+    actionForKeyMulti,
+    commitAll,
+    macroActions,
+    matCompoundItems,
+    selectionEntities,
+    uiHooks,
+    type UiAction,
+  } from './actions';
   import QuickActions from './QuickActions.svelte';
   import type { MenuItem } from './menu';
   import EntityView from './EntityView.svelte';
@@ -82,12 +94,23 @@
     };
   }
 
+  // plain drag on the felt rubber-band selects; ⇧-drag or middle-drag pans
+  // (PROPOSAL v4 §1 — mats move only by their handles, so the plain gesture
+  // is free for selection)
   let pan: { sx: number; sy: number; vx: number; vy: number } | null = null;
+  let band = $state<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+
   function onBackgroundDown(e: PointerEvent) {
-    if (e.button !== 0 && e.button !== 1) return;
-    pan = { sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
-    window.addEventListener('pointermove', onPanMove);
-    window.addEventListener('pointerup', onPanUp);
+    if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+      pan = { sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
+      window.addEventListener('pointermove', onPanMove);
+      window.addEventListener('pointerup', onPanUp);
+      return;
+    }
+    if (e.button !== 0) return;
+    band = { x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY };
+    window.addEventListener('pointermove', onBandMove);
+    window.addEventListener('pointerup', onBandUp);
   }
   function onPanMove(e: PointerEvent) {
     if (!pan) return;
@@ -98,6 +121,57 @@
     pan = null;
     window.removeEventListener('pointermove', onPanMove);
     window.removeEventListener('pointerup', onPanUp);
+  }
+  function onBandMove(e: PointerEvent) {
+    if (!band) return;
+    band.x1 = e.clientX;
+    band.y1 = e.clientY;
+  }
+  function onBandUp() {
+    window.removeEventListener('pointermove', onBandMove);
+    window.removeEventListener('pointerup', onBandUp);
+    const b = band;
+    band = null;
+    if (!b) return;
+    const rect = {
+      left: Math.min(b.x0, b.x1),
+      right: Math.max(b.x0, b.x1),
+      top: Math.min(b.y0, b.y1),
+      bottom: Math.max(b.y0, b.y1),
+    };
+    // a tiny band is a felt click: clear the selection
+    if (rect.right - rect.left < 5 && rect.bottom - rect.top < 5) {
+      table.select([]);
+      return;
+    }
+    table.select(selectableIdsInRect(rect));
+  }
+
+  /** Entities whose on-screen center is inside the rect (or all rendered
+   *  ones, if no rect) — skipping locked scenery, region mats (they have
+   *  handles), and the root. */
+  function selectableIdsInRect(r?: {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+  }): string[] {
+    const out: string[] = [];
+    for (const el of viewportEl.querySelectorAll<HTMLElement>('[data-entity-id]')) {
+      const id = el.dataset.entityId!;
+      const ent = table.get(id);
+      if (!ent || ent.locked) continue;
+      if (ent.kind === 'mat' && ['free', 'grid', 'slots'].includes(ent.config.placement.type))
+        continue;
+      if (r) {
+        const bb = el.getBoundingClientRect();
+        const cx = bb.x + bb.width / 2;
+        const cy = bb.y + bb.height / 2;
+        if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) continue;
+      }
+      out.push(id);
+    }
+    return out;
   }
 
   // ---- entities at the root. The root mat itself renders as the felt; mats
@@ -142,9 +216,16 @@
     return lastClickedId ? (table.get(lastClickedId) ?? null) : null;
   }
 
-  // ---- drag: entities (in whatever mat frame they live) ----
-  let drag: { id: string; dx: number; dy: number; fx: number; fy: number; moved: boolean } | null =
-    null;
+  // ---- drag: entities (in whatever mat frame they live). `extras` carries
+  // the rest of the selection for rigid multi-moves ----
+  interface DragPart {
+    id: string;
+    dx: number;
+    dy: number;
+    fx: number;
+    fy: number;
+  }
+  let drag: (DragPart & { moved: boolean; extras: DragPart[] }) | null = null;
 
   /** Entry rules of the root mat: the felt is a mat like any other. */
   function rootEntryFace(natural: boolean): boolean {
@@ -165,66 +246,95 @@
     return false;
   }
 
-  function onGrab(e: PointerEvent | MouseEvent, ent: Entity) {
-    if (!(e instanceof PointerEvent) || e.button !== 0) return;
-    e.stopPropagation();
-    lastClickedId = ent.id;
-    // resolve a pending send-to by clicking the target mat
-    if (table.pendingSend && ent.kind === 'mat') {
-      resolveSend(ent);
-      return;
-    }
-    if (ent.locked) return;
-    // dragging a stack pulls its top item, like a physical pile;
-    // hold Alt/Cmd/Ctrl to move the mat itself
-    if (
-      ent.kind === 'mat' &&
-      ent.config.placement.type === 'stack' &&
-      !e.altKey &&
-      !e.metaKey &&
-      !e.ctrlKey
-    ) {
-      const top = topItem(table.state, ent);
-      if (top) {
-        startGhostDrag(e, top.id, ent.id);
-        return;
-      }
-    }
-    // dragging a token stack pulls one piece; Alt-drag moves the whole stack
-    if (
-      ent.kind === 'token' &&
-      (ent.state.count ?? 1) > 1 &&
-      !e.altKey &&
-      !e.metaKey &&
-      !e.ctrlKey
-    ) {
-      startGhostDrag(e, ent.id, ent.parent, 'one');
-      return;
-    }
-    const frame = table.effectiveOrigin(ent.parent);
+  const isRegionMatEnt = (ent: Entity) =>
+    ent.kind === 'mat' && ['free', 'grid', 'slots'].includes(ent.config.placement.type);
+
+  /** Start a plain positional drag of `ent` (and, for multi, the rest of the
+   *  selection, each in its own frame). */
+  function beginEntityDrag(e: PointerEvent, ent: Entity, multi = false) {
     const p = screenToTable(e.clientX, e.clientY);
-    const shown = table.effectivePos(ent);
-    drag = {
-      id: ent.id,
-      dx: p.x - frame.x - shown.x,
-      dy: p.y - frame.y - shown.y,
-      fx: frame.x,
-      fy: frame.y,
-      moved: false,
+    const mk = (it: Entity): DragPart => {
+      const frame = table.effectiveOrigin(it.parent);
+      const shown = table.effectivePos(it);
+      return {
+        id: it.id,
+        dx: p.x - frame.x - shown.x,
+        dy: p.y - frame.y - shown.y,
+        fx: frame.x,
+        fy: frame.y,
+      };
     };
+    const extras = multi
+      ? selectionEntities()
+          .filter((it) => it.id !== ent.id && !it.locked)
+          .map(mk)
+      : [];
+    drag = { ...mk(ent), moved: false, extras };
     window.addEventListener('pointermove', onDragMove);
     window.addEventListener('pointerup', onDragUp);
   }
+
+  function onGrab(e: PointerEvent | MouseEvent, ent: Entity) {
+    if (!(e instanceof PointerEvent) || e.button !== 0) return;
+    lastClickedId = ent.id;
+    // resolve a pending send-to by clicking the target mat
+    if (table.pendingSend && ent.kind === 'mat') {
+      e.stopPropagation();
+      resolveSend(ent);
+      return;
+    }
+    // ⌘/Ctrl-click toggles selection membership (PROPOSAL v4 §1)
+    if ((e.metaKey || e.ctrlKey) && !ent.locked && !isRegionMatEnt(ent)) {
+      e.stopPropagation();
+      table.toggleSelect(ent.id);
+      return;
+    }
+    // region mats and locked scenery let the gesture bubble: a drag starting
+    // on them rubber-bands (mats move only by their handles)
+    if (isRegionMatEnt(ent) || ent.locked) return;
+    e.stopPropagation();
+    // dragging any member of a multi-selection moves the whole selection
+    if (table.selected.length > 1 && table.isSelected(ent.id)) {
+      beginEntityDrag(e, ent, true);
+      return;
+    }
+    table.select([ent.id]); // plain click replaces the selection
+    // the body of a pile always takes the top item; handles move the pile
+    if (ent.kind === 'mat' && ent.config.placement.type === 'stack') {
+      const top = topItem(table.state, ent);
+      if (top) startGhostDrag(e, top.id, ent.id);
+      return;
+    }
+    if (ent.kind === 'token' && (ent.state.count ?? 1) > 1) {
+      startGhostDrag(e, ent.id, ent.parent, 'one');
+      return;
+    }
+    // fan/collapsed mats have no body-drag either (their cards ghost-drag
+    // via the fan slots; the mat itself moves by handles)
+    if (ent.kind === 'mat') return;
+    beginEntityDrag(e, ent);
+  }
+
+  /** Handle drag: always moves the entity itself, never its contents. */
+  function onMatMove(e: PointerEvent, ent: Entity) {
+    if (e.button !== 0 || ent.locked) return;
+    e.stopPropagation();
+    lastClickedId = ent.id;
+    beginEntityDrag(e, ent);
+  }
+
   function onDragMove(e: PointerEvent) {
     if (!drag) return;
     const p = screenToTable(e.clientX, e.clientY);
-    const x = p.x - drag.fx - drag.dx;
-    const y = p.y - drag.fy - drag.dy;
     drag.moved = true;
-    table.dragPos[drag.id] = { x, y };
-    // arbitrary items move only in MY view — never stream their drags
-    const ent = table.get(drag.id);
-    if (ent?.positioning !== 'arbitrary') table.net?.sendDrag(drag.id, x, y);
+    for (const part of [drag, ...drag.extras]) {
+      const x = p.x - part.fx - part.dx;
+      const y = p.y - part.fy - part.dy;
+      table.dragPos[part.id] = { x, y };
+      // arbitrary items move only in MY view — never stream their drags
+      const ent = table.get(part.id);
+      if (ent?.positioning !== 'arbitrary') table.net?.sendDrag(part.id, x, y);
+    }
   }
   function onDragUp(e: PointerEvent) {
     window.removeEventListener('pointermove', onDragMove);
@@ -235,7 +345,28 @@
     const ent = table.get(d.id);
     if (!ent) return;
     if (!d.moved) {
-      delete table.dragPos[d.id];
+      for (const part of [d, ...d.extras]) delete table.dragPos[part.id];
+      return;
+    }
+    // multi-move: rigid translation of the whole selection in one atomic
+    // batch (no re-parenting, no snapping — gather actions do that job)
+    if (d.extras.length > 0) {
+      const muts: Mutation[] = [];
+      for (const part of [d, ...d.extras]) {
+        const it = table.get(part.id);
+        const cur = table.dragPos[part.id];
+        if (!it || !cur) continue;
+        if (it.positioning === 'arbitrary') {
+          delete table.dragPos[part.id];
+          table.setPosOverride(part.id, { x: cur.x, y: cur.y, z: it.pos.z });
+        } else {
+          const c = table.clone(it);
+          c.pos = { ...c.pos, x: cur.x, y: cur.y };
+          c.version = table.next();
+          muts.push({ t: 'put', entity: c });
+        }
+      }
+      table.commit(muts);
       return;
     }
     const p = screenToTable(e.clientX, e.clientY);
@@ -561,15 +692,22 @@
   // ---- send-to (stateful key sequence / click-resolve) ----
   const letters = $derived(matLetters(table.state));
   function beginSend(action: UiAction, sel: Entity) {
-    table.pendingSend = { actionId: action.id, selId: sel.id };
+    // invoked with a multi-selection, send applies to all of it
+    const ids =
+      table.selected.length > 1 && table.isSelected(sel.id) ? [...table.selected] : [sel.id];
+    table.pendingSend = { actionId: action.id, selIds: ids };
   }
   function resolveSend(mat: MatEntity) {
     const pending = table.pendingSend;
     table.pendingSend = null;
     if (!pending) return;
-    const sel = table.get(pending.selId);
     const action = ACTIONS.find((a) => a.id === pending.actionId);
-    if (sel && action) action.run(sel, { mat });
+    const ents = pending.selIds
+      .map((id) => table.get(id))
+      .filter((e): e is Entity => !!e && e.id !== mat.id);
+    if (!action || ents.length === 0) return;
+    if (action.muts) commitAll(action.muts, ents, { mat });
+    else action.run(ents[0], { mat });
   }
 
   // ---- context menu / hover buttons / palette (all from the registry) ----
@@ -612,6 +750,14 @@
     }));
 
     if (ent.kind === 'mat') {
+      // act-on-all compounds, derived from the registry (PROPOSAL v4 §1)
+      items.push(...matCompoundItems(ent));
+      const contents = matItems(table.state, ent).filter((i) => !i.locked);
+      if (contents.length > 1)
+        items.push({
+          label: `Select all ${contents.length} items here`,
+          run: () => table.select(contents.map((i) => i.id)),
+        });
       items.push({ label: '⚙ Mat settings…', run: () => (settingsMatId = ent.id) });
       items.push({
         label: table.isPinned(ent.id) ? 'Unpin from my tray' : 'Pin to my tray',
@@ -654,6 +800,18 @@
           run: () => table.setPosOverride(ent.id, null),
         });
       }
+    }
+
+    // "apply to my siblings": select everything of my kind in my container
+    if (ent.kind !== 'mat' && !ent.locked) {
+      const sibs = Object.values(table.state.entities).filter(
+        (x) => x.kind === ent.kind && x.parent === ent.parent && !x.locked,
+      );
+      if (sibs.length > 1)
+        items.push({
+          label: `Select all ${sibs.length} ${ent.kind === 'dice' ? 'dice' : `${ent.kind}s`} here`,
+          run: () => table.select(sibs.map((x) => x.id)),
+        });
     }
 
     // annotations live on any entity (SPEC §15)
@@ -810,9 +968,9 @@
     const t = hoverTarget;
     if (!t) return null;
     if (t.kind === 'mat' && t.config.placement.type === 'stack' && matItems(table.state, t).length > 1)
-      return 'drag = take one · ⌥/⌘ drag = move pile';
+      return 'drag = take one · side handles move the pile';
     if (t.kind === 'token' && (t.state.count ?? 1) > 1)
-      return 'drag = take one · ⌥/⌘ drag = move stack';
+      return 'drag = take one · side handles move the stack';
     return null;
   });
 
@@ -945,6 +1103,7 @@
       items: [
         { label: '⚙ Table settings…', run: () => (settingsMatId = ROOT_MAT_ID) },
         { label: '＋ Add to table…', run: () => (menu = { x, y, items: spawnMenuItems() }) },
+        { label: 'Select all', run: () => table.select(selectableIdsInRect()) },
       ],
     };
   }
@@ -990,6 +1149,7 @@
       settingsMatId = null;
       paletteOpen = false;
       table.pendingSend = null;
+      table.select([]);
       return;
     }
     const tag = (e.target as HTMLElement)?.tagName;
@@ -1022,6 +1182,17 @@
       return;
     }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    // a live multi-selection takes the keys (f flips all, x deletes all…)
+    const selEnts = selectionEntities();
+    if (selEnts.length > 1) {
+      const a = actionForKeyMulti(e.key, selEnts);
+      if (a) {
+        e.preventDefault();
+        if (a.needsMat) beginSend(a, selEnts[0]);
+        else commitAll(a.muts!, selEnts);
+      }
+      return;
+    }
     const sel = selectionNow();
     const action = actionForKey(e.key, sel);
     if (action && sel) {
@@ -1035,6 +1206,7 @@
     onDouble,
     onMenu,
     onGhostGrab: startGhostDrag,
+    onMatMove,
     onHover: setHover,
   };
 </script>
@@ -1110,6 +1282,16 @@
 
   {#if table.pendingSend}
     <div class="sendhint">send to… press a mat letter (h = hand, Esc cancels)</div>
+  {/if}
+
+  {#if band && (Math.abs(band.x1 - band.x0) > 4 || Math.abs(band.y1 - band.y0) > 4)}
+    <div
+      class="band"
+      style:left="{Math.min(band.x0, band.x1)}px"
+      style:top="{Math.min(band.y0, band.y1)}px"
+      style:width="{Math.abs(band.x1 - band.x0)}px"
+      style:height="{Math.abs(band.y1 - band.y0)}px"
+    ></div>
   {/if}
 
   {#if hoverTarget && hoverActions.length > 0 && hoverPos}
@@ -1278,6 +1460,13 @@
     align-items: center;
     justify-content: center;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  }
+  .band {
+    position: fixed;
+    z-index: 260001;
+    border: 1px solid #4da3ff;
+    background: rgba(77, 163, 255, 0.12);
+    pointer-events: none;
   }
   .sendhint {
     position: fixed;

@@ -46,17 +46,32 @@ async function drag(from, to, { alt = false } = {}) {
   if (alt) await page.keyboard.up('Alt');
 }
 
-/** spawn from the palette, then drag the new entity's body to (tx, ty) */
+/** Move an entity by its hover move-handle (piles/mats never body-drag, M13). */
+async function dragByHandle(e, dx, dy, hover = { dx: 10, dy: 10 }) {
+  await page.mouse.move(e.pos.x + hover.dx, e.pos.y + hover.dy + TOOLBAR); // reveal handles
+  const bb = await page
+    .locator(`[data-entity-id="${e.id}"] [data-handle="move"]`)
+    .first()
+    .boundingBox();
+  const c = { x: bb.x + bb.width / 2, y: bb.y + bb.height / 2 };
+  await drag(c, { x: c.x + dx, y: c.y + dy });
+}
+
+/** spawn from the palette, then move the new entity to (tx, ty) — piles and
+ *  mats by their handles, plain items by body drag */
 async function spawnAt(label, kind, tx, ty, grab = { dx: 10, dy: 10 }) {
   await page.click('.toolbar button.primary');
   await page.click(`.menu button:has-text("${label}")`);
   await settle();
   const e = find(await state(), kind);
-  await drag(
-    { x: e.pos.x + grab.dx, y: e.pos.y + grab.dy + TOOLBAR },
-    { x: tx + grab.dx, y: ty + grab.dy + TOOLBAR },
-    { alt: kind === 'deck' || kind === 'token' }, // plain drags pull one card/chip; Alt moves the pile
-  );
+  if (kind === 'deck' || kind === 'token' || kind === 'zone') {
+    await dragByHandle(e, tx - e.pos.x, ty - e.pos.y, grab);
+  } else {
+    await drag(
+      { x: e.pos.x + grab.dx, y: e.pos.y + grab.dy + TOOLBAR },
+      { x: tx + grab.dx, y: ty + grab.dy + TOOLBAR },
+    );
+  }
   await settle();
   return find(await state(), kind);
 }
@@ -372,6 +387,89 @@ ok(
   await page.evaluate(() => !!document.querySelector('.feltgrid')),
   'hex grid renders on the felt',
 );
+
+// ---- M13: selection, rubber-band, multi-move ----
+
+// rubber-band on plain felt drag: sweep over the chip and the dice
+s = await state();
+const chipSel = find(s, 'token');
+const diceSel = find(s, 'dice');
+await drag({ x: 60, y: 480 + TOOLBAR }, { x: 460, y: 640 + TOOLBAR });
+await page.waitForTimeout(200);
+const selCount = await page.evaluate(() => document.querySelectorAll('.entity.selected').length);
+ok(selCount === 2, `rubber-band selected the chip stack and the dice (${selCount})`);
+
+// dragging one member moves the whole selection rigidly, one undo
+const posBefore = { chip: { ...chipSel.pos }, dice: { ...diceSel.pos } };
+await drag(
+  { x: chipSel.pos.x + 17, y: chipSel.pos.y + 17 + TOOLBAR },
+  { x: chipSel.pos.x + 97, y: chipSel.pos.y - 43 + TOOLBAR },
+);
+await settle();
+s = await state();
+const chipMoved = find(s, 'token');
+const diceMoved = find(s, 'dice');
+ok(
+  Math.abs(chipMoved.pos.x - posBefore.chip.x - 80) < 3 &&
+    Math.abs(diceMoved.pos.x - posBefore.dice.x - 80) < 3 &&
+    Math.abs(diceMoved.pos.y - posBefore.dice.y + 60) < 3,
+  'multi-drag translated both members rigidly',
+);
+await page.keyboard.press('Escape'); // clear selection
+await page.click('.toolbar button:has-text("undo")');
+await settle();
+s = await state();
+ok(
+  find(s, 'token').pos.x === posBefore.chip.x && find(s, 'dice').pos.x === posBefore.dice.x,
+  'one undo reversed the whole multi-move',
+);
+
+// ⌘-click toggles selection membership (Meta: ctrl+click is contextmenu on mac)
+await page.keyboard.down('Meta');
+await page.mouse.click(posBefore.chip.x + 17, posBefore.chip.y + 17 + TOOLBAR);
+await page.mouse.click(posBefore.dice.x + 20, posBefore.dice.y + 20 + TOOLBAR);
+await page.keyboard.up('Meta');
+await page.waitForTimeout(150);
+let selNow = await page.evaluate(() => document.querySelectorAll('.entity.selected').length);
+ok(selNow === 2, `ctrl-click built a 2-item selection (${selNow})`);
+await page.keyboard.down('Meta');
+await page.mouse.click(posBefore.dice.x + 20, posBefore.dice.y + 20 + TOOLBAR);
+await page.keyboard.up('Meta');
+await page.waitForTimeout(150);
+selNow = await page.evaluate(() => document.querySelectorAll('.entity.selected').length);
+ok(selNow === 1, `ctrl-click toggled one back out (${selNow})`);
+await page.keyboard.press('Escape');
+
+// keys act on the selection: band over the zone's two cards, f flips both
+s = await state();
+const zCards = Object.values(s.entities).filter((e) => e.kind === 'card' && e.parent === zone.id);
+const facesBefore = Object.fromEntries(zCards.map((c) => [c.id, c.state.faceUp]));
+await drag({ x: zone.pos.x - 10, y: zone.pos.y - 10 + TOOLBAR }, {
+  x: zone.pos.x + zone.config.size.w + 10,
+  y: zone.pos.y + zone.config.size.h + 10 + TOOLBAR,
+});
+await page.waitForTimeout(200);
+await page.keyboard.press('f');
+await settle();
+s = await state();
+ok(
+  zCards.every((c) => s.entities[c.id].state.faceUp === !facesBefore[c.id]),
+  'f flipped every selected card in one step',
+);
+await page.keyboard.press('Escape');
+
+// shift-drag pans the felt (kept out of the way until the end: it moves the
+// coordinate frame)
+const viewBefore = await page.evaluate(
+  () => document.querySelector('.surface').style.transform,
+);
+await page.keyboard.down('Shift');
+await drag({ x: 500, y: 400 + TOOLBAR }, { x: 560, y: 430 + TOOLBAR });
+await page.keyboard.up('Shift');
+const viewAfter = await page.evaluate(
+  () => document.querySelector('.surface').style.transform,
+);
+ok(viewBefore !== viewAfter, `shift-drag panned the view (${viewAfter})`);
 
 await browser.close();
 console.log('DONE');

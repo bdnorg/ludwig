@@ -26,6 +26,8 @@
     onDouble: Handler;
     onMenu: Handler;
     onGhostGrab: GhostHandler;
+    /** move via a handle: always drags the entity itself, never its contents */
+    onMatMove: (e: PointerEvent, ent: Entity) => void;
     onHover: (id: string | null) => void;
   }
   let { entity, handlers }: { entity: Entity; handlers: Handlers } = $props();
@@ -67,6 +69,14 @@
       : '',
   );
 
+  // piles move by their hover handles; the body always takes the top item
+  // (PROPOSAL v4 §2). Region mats carry their handles inside MatRegion.
+  const showHandles = $derived(
+    !entity.locked &&
+      ((mat !== null && view !== 'region') ||
+        (entity.kind === 'token' && (entity.state.count ?? 1) > 1)),
+  );
+
   function cardFace(c: CardEntity) {
     return faceVisible(table.state, c, me) ? c.config.front : null;
   }
@@ -77,6 +87,8 @@
   <div
     class="entity"
     class:locked={entity.locked}
+    class:selected={table.isSelected(entity.id)}
+    class:matlike={showHandles}
     style:left="{pos.x}px"
     style:top="{pos.y}px"
     style:z-index={z}
@@ -94,7 +106,7 @@
   >
     {#if mat}
       {#if view === 'region'}
-        <MatRegion {mat} privileged={isPrivileged}>
+        <MatRegion {mat} privileged={isPrivileged} onMove={(e) => handlers.onMatMove(e, entity)}>
           {#each items as child (child.id)}
             <Self entity={child} {handlers} />
           {/each}
@@ -195,6 +207,17 @@
     {#if entity.annotation}
       <span class="anno" title={entity.annotation}>📝</span>
     {/if}
+    {#if showHandles}
+      {#each ['n', 'e', 's', 'w'] as side (side)}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="mhandle h-{side}"
+          data-handle="move"
+          title="move the pile"
+          onpointerdown={(e) => handlers.onMatMove(e, entity)}
+        ></div>
+      {/each}
+    {/if}
   </div>
 {/if}
 
@@ -206,6 +229,52 @@
   }
   .entity.locked {
     cursor: default;
+  }
+  /* piles reveal their mat nature on hover: dotted outline + handles */
+  .entity.matlike:hover {
+    outline: 1.5px dashed rgba(255, 255, 255, 0.45);
+    outline-offset: 4px;
+    border-radius: 8px;
+  }
+  .entity.selected {
+    outline: 2px solid #4da3ff;
+    outline-offset: 3px;
+    border-radius: 8px;
+  }
+  .mhandle {
+    position: absolute;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: rgba(77, 163, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    cursor: move;
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 6;
+  }
+  .entity:hover .mhandle {
+    opacity: 1;
+  }
+  .h-n {
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .h-s {
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .h-e {
+    right: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .h-w {
+    left: -10px;
+    top: 50%;
+    transform: translateY(-50%);
   }
   .token {
     border-radius: 50%;
