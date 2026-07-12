@@ -44,24 +44,42 @@ function pluckFromMat(ctx: OpCtx, item: Entity): Mutation[] {
   return [put(ctx, m)];
 }
 
-/** Snap a mat-relative position per the mat's placement policy. */
-export function snapPos(mat: MatEntity, pos: Pos): Pos {
+/** Half-extent of an item, for centering it on a slot. */
+function halfSize(item?: Entity): { hw: number; hh: number } {
+  if (!item) return { hw: 0, hh: 0 };
+  if (item.kind === 'card') return { hw: item.config.w / 2, hh: item.config.h / 2 };
+  if (item.kind === 'token') return { hw: item.config.size / 2, hh: item.config.size / 2 };
+  return { hw: 0, hh: 0 };
+}
+
+/** Snap a mat-relative (top-left) position per the mat's placement policy.
+ *  Slot mats center the item on the nearest slot whose `accepts` matches the
+ *  item's tags (slots without `accepts` take anything) and apply slot rot. */
+export function snapPos(mat: MatEntity, pos: Pos, item?: Entity): Pos {
   const p = mat.config.placement;
   if (p.type === 'grid' && p.grid) {
     const g = p.grid.size;
     return { ...pos, x: Math.round(pos.x / g) * g, y: Math.round(pos.y / g) * g };
   }
   if (p.type === 'slots' && p.slots?.length) {
-    let best = p.slots[0];
+    const tags = item?.kind === 'token' ? (item.config.tags ?? []) : item ? [item.kind] : [];
+    const eligible = p.slots.filter(
+      (s) => !s.accepts?.length || s.accepts.some((a) => tags.includes(a)),
+    );
+    if (eligible.length === 0) return pos;
+    const { hw, hh } = halfSize(item);
+    const cx = pos.x + hw;
+    const cy = pos.y + hh;
+    let best = eligible[0];
     let bd = Infinity;
-    for (const s of p.slots) {
-      const d = (s.x - pos.x) ** 2 + (s.y - pos.y) ** 2;
+    for (const s of eligible) {
+      const d = (s.x - cx) ** 2 + (s.y - cy) ** 2;
       if (d < bd) {
         bd = d;
         best = s;
       }
     }
-    return { ...pos, x: best.x, y: best.y };
+    return { ...pos, x: best.x - hw, y: best.y - hh, rot: best.rot ?? 0 };
   }
   return pos;
 }
@@ -93,7 +111,7 @@ export function moveToMat(ctx: OpCtx, item: Entity, mat: MatEntity, opts: MoveOp
 
   const it = ctx.clone(item);
   it.parent = mat.id;
-  if (opts.pos) it.pos = snapPos(m, opts.pos);
+  if (opts.pos) it.pos = snapPos(m, opts.pos, it);
   if (it.kind === 'card' && entering) {
     const face = opts.face ?? m.config.faceDefault;
     if (face !== 'keep') it.state.faceUp = face === 'up';
@@ -228,6 +246,50 @@ export function tokensMatch(a: TokenEntity, b: TokenEntity): boolean {
     a.config.shape === b.config.shape &&
     a.config.size === b.config.size
   );
+}
+
+/** Take one piece off a stack and place it — on the table (mat = null) or
+ *  into a mat (snapped, e.g. a road onto an edge slot). The reserve-stack
+ *  gesture: finite supplies stay finite by construction. */
+export function takeOneTo(
+  ctx: OpCtx,
+  src: TokenEntity,
+  mat: MatEntity | null,
+  pos: Pos,
+): Mutation[] {
+  const have = src.state.count || 1;
+  const one = ctx.clone(src);
+  one.id = newId('tok');
+  one.state.count = 1;
+  one.parent = mat ? mat.id : null;
+  one.pos = mat ? snapPos(mat, pos, one) : pos;
+  const muts: Mutation[] = [];
+  if (have <= 1) {
+    // taking the last piece: the stack is gone
+    muts.push({ t: 'del', id: src.id, version: ctx.next() });
+  } else {
+    const rest = ctx.clone(src);
+    rest.state.count = have - 1;
+    muts.push(put(ctx, rest));
+  }
+  if (mat) {
+    const m = ctx.clone(mat);
+    m.state.order = [one.id, ...m.state.order];
+    muts.push(put(ctx, m));
+  }
+  muts.push(put(ctx, one));
+  return muts;
+}
+
+/** Move one piece from a stack onto a matching stack. */
+export function transferToken(ctx: OpCtx, src: TokenEntity, dst: TokenEntity): Mutation[] {
+  const have = src.state.count || 1;
+  const d = ctx.clone(dst);
+  d.state.count = (d.state.count || 1) + 1;
+  if (have <= 1) return [{ t: 'del', id: src.id, version: ctx.next() }, put(ctx, d)];
+  const s = ctx.clone(src);
+  s.state.count = have - 1;
+  return [put(ctx, s), put(ctx, d)];
 }
 
 /** Split n pieces off a stack into a new stack at pos. */

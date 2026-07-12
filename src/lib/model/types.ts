@@ -23,6 +23,10 @@ interface Base<K extends string, C, S> {
   /** coordinates relative to the containing mat (table coords at root);
    *  ignored inside stack/fan mats, where mat order rules */
   pos: Pos;
+  /** 'absolute' (default): pos is shared — moving it moves it for everyone.
+   *  'arbitrary': pos is only a default starting point; each viewer places
+   *  it locally and moves never sync (SPEC §10). */
+  positioning?: 'absolute' | 'arbitrary';
   locked: boolean;
   config: C;
   state: S;
@@ -57,6 +61,8 @@ export interface SlotDef {
   id: string;
   x: number;
   y: number;
+  /** rotation applied to items snapped here (roads on hex edges) */
+  rot?: number;
   /** restrict what may snap here (matches item config.tags); empty = anything */
   accepts?: string[];
 }
@@ -98,7 +104,14 @@ export type MatEntity = Base<
 
 export type TokenEntity = Base<
   'token',
-  { shape: 'disc' | 'square'; color: string; label: string; size: number },
+  {
+    shape: 'disc' | 'square' | 'hex' | 'bar'; // bar = road-like piece (rotatable)
+    color: string;
+    label: string;
+    size: number;
+    /** matched against slot `accepts` when snapping (e.g. "building", "road") */
+    tags?: string[];
+  },
   { count: number } // a stack of identical pieces; 1 = a single token
 >;
 

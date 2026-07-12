@@ -126,7 +126,8 @@ describe('mat ops', () => {
       (e): e is CardEntity => e.kind === 'card' && e.parent === null,
     )!;
     peer.apply(ops.moveToMat(peer, card, board, { pos: { x: 150, y: 25, z: 1, rot: 0 } }));
-    expect(fresh<CardEntity>(card.id).pos.x).toBe(200);
+    // snapping centers the card (w=72) on the nearest slot (x=200)
+    expect(fresh<CardEntity>(card.id).pos.x).toBe(200 - 36);
   });
 
   it('deleting a mat deletes its contents recursively', () => {

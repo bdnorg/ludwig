@@ -47,6 +47,9 @@ export class TableStore implements OpCtx {
   pointers = $state<Record<string, PointerState>>({});
   /** LOCAL view preferences per mat — never synced (SPEC §11) */
   views = $state<Record<string, ViewMode>>({});
+  /** LOCAL placements for positioning:'arbitrary' entities — never synced;
+   *  the shared pos is just the default starting point */
+  posOverrides = $state<Record<string, { x: number; y: number; z: number }>>({});
   /** current table zoom, published by the Table component for pointer math */
   uiScale = $state(1);
   /** a needsMat action is waiting for a mat letter (shows letter badges) */
@@ -76,6 +79,11 @@ export class TableStore implements OpCtx {
     } catch {
       this.views = {};
     }
+    try {
+      this.posOverrides = JSON.parse(localStorage.getItem(`ludwig:pos:${room}`) ?? '{}');
+    } catch {
+      this.posOverrides = {};
+    }
     this.ensureHand();
   }
 
@@ -83,6 +91,36 @@ export class TableStore implements OpCtx {
     if (mode === 'auto') delete this.views[matId];
     else this.views[matId] = mode;
     localStorage.setItem(`ludwig:views:${this.room}`, JSON.stringify(this.views));
+  }
+
+  setPosOverride(id: string, pos: { x: number; y: number; z: number } | null): void {
+    if (pos) this.posOverrides[id] = pos;
+    else delete this.posOverrides[id];
+    localStorage.setItem(`ludwig:pos:${this.room}`, JSON.stringify(this.posOverrides));
+  }
+
+  /** Where the entity is FOR ME: local override for arbitrary items, shared
+   *  pos otherwise. */
+  effectivePos(e: Entity): Entity['pos'] {
+    const o = e.positioning === 'arbitrary' ? this.posOverrides[e.id] : undefined;
+    return o ? { ...e.pos, ...o } : e.pos;
+  }
+
+  /** Like matOrigin, but through my local placements. */
+  effectiveOrigin(parentId: string | null): { x: number; y: number } {
+    let x = 0;
+    let y = 0;
+    let cur = parentId;
+    let hops = 0;
+    while (cur && hops++ < 20) {
+      const m = this.state.entities[cur];
+      if (!m) break;
+      const p = this.effectivePos(m);
+      x += p.x;
+      y += p.y;
+      cur = m.parent;
+    }
+    return { x, y };
   }
 
   // ---- OpCtx ----

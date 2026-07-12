@@ -53,7 +53,7 @@ async function spawnAt(label, kind, tx, ty, grab = { dx: 10, dy: 10 }) {
   await drag(
     { x: e.pos.x + grab.dx, y: e.pos.y + grab.dy + TOOLBAR },
     { x: tx + grab.dx, y: ty + grab.dy + TOOLBAR },
-    { alt: kind === 'deck' }, // plain stack drag pulls the top card; Alt moves the pile
+    { alt: kind === 'deck' || kind === 'token' }, // plain drags pull one card/chip; Alt moves the pile
   );
   await settle();
   return find(await state(), kind);

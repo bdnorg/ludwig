@@ -4,6 +4,7 @@
 
 import { standardDeck } from '../model/cards52';
 import { dominionTable } from '../model/dominion';
+import { catanTable } from '../model/catan';
 import type { TableStore } from './store.svelte';
 
 const KEY = 'ludwig:pending-template';
@@ -12,6 +13,7 @@ export const TEMPLATES = [
   { id: 'sandbox', name: 'Empty sandbox', blurb: 'A bare table — add anything from the palette.' },
   { id: 'cards52', name: '52-card deck', blurb: 'Poker, hearts, euchre, rummy…' },
   { id: 'dominion', name: 'Dominion (base, first game)', blurb: 'Full supply, kingdom, and starter decks.' },
+  { id: 'catan', name: 'Settlers of Catan (beginner board)', blurb: 'Snap-slot island, finite pieces, resources.' },
 ] as const;
 
 export type TemplateId = (typeof TEMPLATES)[number]['id'];
@@ -33,4 +35,5 @@ export function applyPendingTemplate(store: TableStore): void {
   if (id === 'cards52')
     store.emit(standardDeck(store, { x: 620, y: 300, z: 1, rot: 0 }));
   else if (id === 'dominion') store.emit(dominionTable(store, { x: 70, y: 70, z: 1, rot: 0 }));
+  else if (id === 'catan') store.emit(catanTable(store, { x: 280, y: 60, z: 1, rot: 0 }));
 }

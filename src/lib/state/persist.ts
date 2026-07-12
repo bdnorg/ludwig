@@ -22,9 +22,63 @@ export function loadTable(room: string): TableState {
 export function saveTable(room: string, s: TableState): void {
   try {
     localStorage.setItem(key(room), JSON.stringify(s));
+    const meta = loadMeta(room);
+    meta.savedAt = Date.now();
+    localStorage.setItem(`ludwig:meta:${room}`, JSON.stringify(meta));
   } catch {
     /* quota exceeded — autosave is best-effort */
   }
+}
+
+// ---- game instances: every saved room in this browser (SPEC §13) ----
+
+export interface TableMeta {
+  name?: string;
+  savedAt?: number;
+}
+
+export function loadMeta(room: string): TableMeta {
+  try {
+    return JSON.parse(localStorage.getItem(`ludwig:meta:${room}`) ?? '{}') as TableMeta;
+  } catch {
+    return {};
+  }
+}
+
+export function renameTable(room: string, name: string): void {
+  const meta = loadMeta(room);
+  meta.name = name;
+  localStorage.setItem(`ludwig:meta:${room}`, JSON.stringify(meta));
+}
+
+export interface TableListing {
+  room: string;
+  name: string;
+  savedAt: number;
+  pieces: number;
+}
+
+export function listTables(): TableListing[] {
+  const out: TableListing[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k?.startsWith('ludwig:table:')) continue;
+    const room = k.slice('ludwig:table:'.length);
+    const meta = loadMeta(room);
+    let pieces = 0;
+    try {
+      pieces = Object.keys((JSON.parse(localStorage.getItem(k) ?? '{}') as TableState).entities ?? {}).length;
+    } catch {
+      /* corrupt entry — show it anyway so it can be deleted */
+    }
+    out.push({ room, name: meta.name ?? room, savedAt: meta.savedAt ?? 0, pieces });
+  }
+  return out.sort((a, b) => b.savedAt - a.savedAt);
+}
+
+export function deleteTable(room: string): void {
+  for (const k of [`ludwig:table:${room}`, `ludwig:meta:${room}`, `ludwig:views:${room}`, `ludwig:pos:${room}`])
+    localStorage.removeItem(k);
 }
 
 function download(name: string, data: unknown): void {

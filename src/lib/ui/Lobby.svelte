@@ -1,11 +1,37 @@
 <script lang="ts">
   import { newRoomCode } from '../roomcode';
   import { loadPlayer, savePlayer } from '../state/player';
+  import { deleteTable, listTables, renameTable } from '../state/persist';
   import { TEMPLATES, requestTemplate, type TemplateId } from '../state/templates';
 
   let player = $state(loadPlayer());
   let joinCode = $state('');
   let template = $state<TemplateId>('sandbox');
+  let tables = $state(listTables());
+
+  function ago(t: number): string {
+    if (!t) return '';
+    const m = Math.round((Date.now() - t) / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m}m ago`;
+    if (m < 60 * 48) return `${Math.round(m / 60)}h ago`;
+    return `${Math.round(m / 1440)}d ago`;
+  }
+
+  function rename(room: string, current: string) {
+    const name = prompt('Table name:', current);
+    if (name) {
+      renameTable(room, name);
+      tables = listTables();
+    }
+  }
+
+  function remove(room: string, name: string) {
+    if (confirm(`Delete "${name}" from this browser? (Other players keep their copies.)`)) {
+      deleteTable(room);
+      tables = listTables();
+    }
+  }
 
   function persistName() {
     savePlayer($state.snapshot(player));
@@ -55,6 +81,22 @@
     </label>
     <button type="submit" disabled={!player.name.trim() || !joinCode.trim()}>Join</button>
   </form>
+
+  {#if tables.length > 0}
+    <div class="mytables">
+      <span class="heading">My tables</span>
+      {#each tables as t (t.room)}
+        <div class="row">
+          <a href="#/t/{t.room}" class="open">
+            <strong>{t.name}</strong>
+            <span class="sub">{t.room} · {t.pieces} pieces · {ago(t.savedAt)}</span>
+          </a>
+          <button class="tinybtn" title="rename" onclick={() => rename(t.room, t.name)}>✎</button>
+          <button class="tinybtn" title="delete" onclick={() => remove(t.room, t.name)}>✕</button>
+        </div>
+      {/each}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -107,5 +149,47 @@
   .tmpl.selected {
     border-color: var(--accent);
     outline: 1px solid var(--accent);
+  }
+  .mytables {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    border-top: 1px solid #454f60;
+    padding-top: 1rem;
+  }
+  .heading {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .open {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    color: var(--text);
+    text-decoration: none;
+    background: var(--panel);
+    border: 1px solid #454f60;
+    border-radius: 6px;
+    padding: 0.45rem 0.7rem;
+  }
+  .open:hover {
+    border-color: var(--accent);
+  }
+  .sub {
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+  .tinybtn {
+    font-size: 0.7rem;
+    padding: 0.3rem 0.5rem;
+    color: var(--muted);
   }
 </style>

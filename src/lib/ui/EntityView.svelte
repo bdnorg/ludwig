@@ -31,7 +31,7 @@
   let { entity, handlers }: { entity: Entity; handlers: Handlers } = $props();
 
   const me = $derived(table.me.id);
-  const pos = $derived(table.dragPos[entity.id] ?? entity.pos);
+  const pos = $derived(table.dragPos[entity.id] ?? table.effectivePos(entity));
   const isRegion = $derived(
     entity.kind === 'mat' && ['free', 'grid', 'slots'].includes(entity.config.placement.type),
   );
@@ -150,9 +150,14 @@
       <div
         class="token"
         class:square={entity.config.shape === 'square'}
+        class:hex={entity.config.shape === 'hex'}
+        class:bar={entity.config.shape === 'bar'}
         style:width="{entity.config.size}px"
-        style:height="{entity.config.size}px"
+        style:height="{entity.config.shape === 'bar'
+          ? Math.round(entity.config.size * 0.3)
+          : entity.config.size}px"
         style:background={entity.config.color}
+        style:transform={entity.pos.rot ? `rotate(${entity.pos.rot}deg)` : undefined}
       >
         {entity.config.label}
         {#if (entity.state.count ?? 1) > 1}
@@ -204,6 +209,14 @@
   }
   .token.square {
     border-radius: 4px;
+  }
+  .token.hex {
+    border-radius: 0;
+    clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+    box-shadow: none;
+  }
+  .token.bar {
+    border-radius: 3px;
   }
   .stackbadge {
     position: absolute;

@@ -11,12 +11,12 @@
     makeMat,
     matItems,
     matLetters,
-    matOrigin,
     matPresets,
     topItem,
   } from '../model/mats';
   import { buildCardSet, validateCardSet } from '../model/cardsets';
   import { dominionTable } from '../model/dominion';
+  import { catanTable } from '../model/catan';
   import { table } from '../state/store.svelte';
   import { connect } from '../net/room';
   import { exportTable, exportTemplate } from '../state/persist';
@@ -158,12 +158,24 @@
         return;
       }
     }
-    const frame = matOrigin(table.state, ent.parent);
+    // dragging a token stack pulls one piece; Alt-drag moves the whole stack
+    if (
+      ent.kind === 'token' &&
+      (ent.state.count ?? 1) > 1 &&
+      !e.altKey &&
+      !e.metaKey &&
+      !e.ctrlKey
+    ) {
+      startGhostDrag(e, ent.id, ent.parent, 'one');
+      return;
+    }
+    const frame = table.effectiveOrigin(ent.parent);
     const p = screenToTable(e.clientX, e.clientY);
+    const shown = table.effectivePos(ent);
     drag = {
       id: ent.id,
-      dx: p.x - frame.x - ent.pos.x,
-      dy: p.y - frame.y - ent.pos.y,
+      dx: p.x - frame.x - shown.x,
+      dy: p.y - frame.y - shown.y,
       fx: frame.x,
       fy: frame.y,
       moved: false,
@@ -178,7 +190,9 @@
     const y = p.y - drag.fy - drag.dy;
     drag.moved = true;
     table.dragPos[drag.id] = { x, y };
-    table.net?.sendDrag(drag.id, x, y);
+    // arbitrary items move only in MY view — never stream their drags
+    const ent = table.get(drag.id);
+    if (ent?.positioning !== 'arbitrary') table.net?.sendDrag(drag.id, x, y);
   }
   function onDragUp(e: PointerEvent) {
     window.removeEventListener('pointermove', onDragMove);
@@ -198,13 +212,10 @@
 
     // token-stack merge
     if (ent.kind === 'token') {
-      const t = dropTargetAt(e.clientX, e.clientY, ent.id);
-      if (t?.type === 'token') {
-        const dst = table.get(t.id);
-        if (dst?.kind === 'token' && ops.tokensMatch(ent, dst)) {
-          table.commit(ops.mergeTokens(table, ent, dst));
-          return;
-        }
+      const dst = matchingTokenAt(e.clientX, e.clientY, ent);
+      if (dst?.kind === 'token') {
+        table.commit(ops.mergeTokens(table, ent, dst));
+        return;
       }
     }
 
@@ -218,17 +229,19 @@
       if (mat) {
         const stackish = ['stack', 'fan'].includes(mat.config.placement.type);
         if (stackish && (ent.kind === 'card' || ent.kind === 'token')) {
+          table.setPosOverride(ent.id, null);
           table.commit(ops.moveToMat(table, ent, mat, { where: 'top' }));
           return;
         }
         if (!stackish && !isRegionMat) {
-          const o = matOrigin(table.state, mat.id);
+          const o = table.effectiveOrigin(mat.id);
           const pos: Pos = {
             x: p.x - o.x - d.dx,
             y: p.y - o.y - d.dy,
             z: table.maxZ() + 1,
             rot: ent.pos.rot,
           };
+          table.setPosOverride(ent.id, null);
           table.commit(ops.moveToMat(table, ent, mat, { pos }));
           return;
         }
@@ -242,9 +255,15 @@
       rot: ent.pos.rot,
     };
     if (ent.parent === null) {
-      table.update(ent, (draft) => {
-        draft.pos = pos;
-      });
+      if (ent.positioning === 'arbitrary') {
+        // my view only: store the placement locally, never sync (SPEC §10)
+        delete table.dragPos[ent.id];
+        table.setPosOverride(ent.id, { x: pos.x, y: pos.y, z: pos.z });
+      } else {
+        table.update(ent, (draft) => {
+          draft.pos = pos;
+        });
+      }
     } else {
       const parentMat = getMat(table.state, ent.parent);
       const stillInside =
@@ -255,37 +274,66 @@
       if (stillInside) {
         // moving within the same region mat: reposition + snap, no entry rule
         const local: Pos = { x: p.x - d.fx - d.dx, y: p.y - d.fy - d.dy, z: pos.z, rot: pos.rot };
-        table.update(ent, (draft) => {
-          draft.pos = ops.snapPos(parentMat, local);
-        });
+        const snapped = ops.snapPos(parentMat, local, ent);
+        if (ent.positioning === 'arbitrary') {
+          delete table.dragPos[ent.id];
+          table.setPosOverride(ent.id, { x: snapped.x, y: snapped.y, z: snapped.z });
+        } else {
+          table.update(ent, (draft) => {
+            draft.pos = snapped;
+          });
+        }
       } else {
+        table.setPosOverride(ent.id, null); // containment changes are shared
         table.commit(ops.moveToTable(table, ent, pos));
       }
     }
   }
 
-  function dropTargetAt(
-    cx: number,
-    cy: number,
-    excludeId: string,
-  ): { type: 'mat' | 'token'; id: string } | { type: 'tray' } | null {
+  type DropTarget = { type: 'mat' | 'token'; id: string } | { type: 'tray' };
+
+  /** All drop candidates under the point, topmost first — callers pick the
+   *  first that applies (e.g. a road ignores the hex tile it lands on and
+   *  falls through to the board mat beneath). */
+  function dropTargetsAt(cx: number, cy: number, excludeId: string): DropTarget[] {
+    const out: DropTarget[] = [];
     for (const el of document.elementsFromPoint(cx, cy)) {
       const html = el as HTMLElement;
       if (html.dataset?.entityId === excludeId) continue;
       const dd = html.dataset?.drop;
       if (!dd) continue;
-      if (dd === 'tray') return { type: 'tray' };
+      if (dd === 'tray') {
+        out.push({ type: 'tray' });
+        continue;
+      }
       const [t, id] = dd.split(':');
       if ((t === 'mat' || t === 'token') && id !== excludeId && !isDescendant(id, excludeId))
-        return { type: t as 'mat' | 'token', id };
+        out.push({ type: t as 'mat' | 'token', id });
+    }
+    return out;
+  }
+
+  /** First target that isn't a token (tokens only matter for merging). */
+  function dropTargetAt(cx: number, cy: number, excludeId: string): DropTarget | null {
+    return dropTargetsAt(cx, cy, excludeId).find((t) => t.type !== 'token') ?? null;
+  }
+
+  /** First token under the point that merges with `tok`. */
+  function matchingTokenAt(cx: number, cy: number, tok: Entity & { kind: 'token' }): Entity | null {
+    for (const t of dropTargetsAt(cx, cy, tok.id)) {
+      if (t.type !== 'token') continue;
+      const dst = table.get(t.id);
+      if (dst?.kind === 'token' && ops.tokensMatch(tok, dst)) return dst;
     }
     return null;
   }
 
-  // ---- ghost drag: a card/item out of a fan, the hand tray, or a stack top ----
+  // ---- ghost drag: a card out of a fan/tray/stack top, or ONE token off a
+  // stack (mode 'one') ----
   let ghost = $state<{
     id: string;
     srcMat: string | null;
+    mode: 'item' | 'one';
     sx: number;
     sy: number;
     x: number;
@@ -293,13 +341,19 @@
     moved: boolean;
   } | null>(null);
 
-  function startGhostDrag(e: PointerEvent, itemId: string, srcMatId: string | null) {
+  function startGhostDrag(
+    e: PointerEvent,
+    itemId: string,
+    srcMatId: string | null,
+    mode: 'item' | 'one' = 'item',
+  ) {
     if (e.button !== 0) return;
     e.stopPropagation();
     lastClickedId = itemId;
     ghost = {
       id: itemId,
       srcMat: srcMatId,
+      mode,
       sx: e.clientX,
       sy: e.clientY,
       x: e.clientX,
@@ -323,6 +377,44 @@
     if (!g || !g.moved) return;
     const item = table.get(g.id);
     if (!item) return;
+
+    // mode 'one': take a single piece off a token stack
+    if (g.mode === 'one' && item.kind === 'token') {
+      const dst = matchingTokenAt(e.clientX, e.clientY, item);
+      if (dst?.kind === 'token') {
+        table.commit(ops.transferToken(table, item, dst));
+        return;
+      }
+      const target = dropTargetAt(e.clientX, e.clientY, g.id);
+      const p = screenToTable(e.clientX, e.clientY);
+      const half = item.config.size / 2;
+      if (target?.type === 'mat') {
+        const mat = getMat(table.state, target.id);
+        if (mat && !['stack', 'fan'].includes(mat.config.placement.type)) {
+          const o = table.effectiveOrigin(mat.id);
+          table.commit(
+            ops.takeOneTo(table, item, mat, {
+              x: p.x - o.x - half,
+              y: p.y - o.y - half,
+              z: table.maxZ() + 1,
+              rot: 0,
+            }),
+          );
+          return;
+        }
+        return; // token into a card stack: not a thing
+      }
+      table.commit(
+        ops.takeOneTo(table, item, null, {
+          x: p.x - half,
+          y: p.y - half,
+          z: table.maxZ() + 1,
+          rot: 0,
+        }),
+      );
+      return;
+    }
+
     const src = getMat(table.state, g.srcMat);
     const target = dropTargetAt(e.clientX, e.clientY, g.id);
 
@@ -339,7 +431,7 @@
         if (stackish) {
           table.commit(ops.moveToMat(table, item, mat, { where: 'top' }));
         } else {
-          const o = matOrigin(table.state, mat.id);
+          const o = table.effectiveOrigin(mat.id);
           const p = screenToTable(e.clientX, e.clientY);
           const w = item.kind === 'card' ? item.config.w : 30;
           const h = item.kind === 'card' ? item.config.h : 30;
@@ -406,7 +498,7 @@
 
   uiHooks.openSearch = (matId) => (searchMatId = matId);
   uiHooks.spotBeside = (e) => {
-    const o = matOrigin(table.state, e.parent);
+    const o = table.effectiveOrigin(e.parent);
     return { x: o.x + e.pos.x + 88, y: o.y + e.pos.y, z: table.maxZ() + 1, rot: 0 };
   };
 
@@ -468,6 +560,35 @@
             });
         },
       });
+    }
+
+    // positioning mode: shared moves vs my-view-only (SPEC §10)
+    if (!(ent.kind === 'mat' && ent.config.docked)) {
+      const arb = ent.positioning === 'arbitrary';
+      items.push({
+        label: arb ? 'Position: my view only → shared' : 'Position: shared → my view only',
+        run: () => {
+          if (arb) {
+            // adopt my current placement as the shared one
+            const mine = table.effectivePos(ent);
+            table.setPosOverride(ent.id, null);
+            table.update(ent, (d) => {
+              d.positioning = 'absolute';
+              d.pos = { ...d.pos, x: mine.x, y: mine.y, z: mine.z };
+            });
+          } else {
+            table.update(ent, (d) => {
+              d.positioning = 'arbitrary';
+            });
+          }
+        },
+      });
+      if (arb && table.posOverrides[ent.id]) {
+        items.push({
+          label: 'Reset to default spot',
+          run: () => table.setPosOverride(ent.id, null),
+        });
+      }
     }
 
     if (ent.kind === 'dice') {
@@ -585,8 +706,8 @@
   );
   const hoverPos = $derived.by(() => {
     if (!hoverTarget) return null;
-    const o = matOrigin(table.state, hoverTarget.parent);
-    const pos = table.dragPos[hoverTarget.id] ?? hoverTarget.pos;
+    const o = table.effectiveOrigin(hoverTarget.parent);
+    const pos = table.dragPos[hoverTarget.id] ?? table.effectivePos(hoverTarget);
     return tableToScreen(o.x + pos.x, o.y + pos.y);
   });
 
@@ -687,6 +808,13 @@
           }),
       },
       { label: '🗈 Note', run: () => spawn('note', { color: '#e7d980' }, { text: '' }) },
+      {
+        label: '⬡ Catan setup (beginner)',
+        run: () => {
+          const p = centerPos();
+          table.commit(catanTable(table, { x: p.x - 260, y: p.y - 280, z: p.z, rot: 0 }));
+        },
+      },
       {
         label: '⚔ Dominion setup (base)',
         run: () => {

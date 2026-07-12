@@ -24,8 +24,10 @@ node scripts/p2ptest.mjs   # 2-browser P2P integration test (needs dev server + 
 
 ## Play
 
-Open the app, enter a name, pick a template (sandbox, 52-card deck, or
-Dominion), start a table, and send the invite link to friends. Use
+Open the app, enter a name, pick a template (sandbox, 52-card deck,
+Dominion, or Settlers of Catan), start a table, and send the invite link to
+friends. Saved tables reappear under "My tables" in the lobby — rename,
+reopen, or delete them there. Use
 **+ add to table** to spawn decks, chips, dice, counters, scoreboards,
 timers, zones, and notes — or import your own card set / saved template
 (see [TEMPLATES.md](TEMPLATES.md)). Interactions:
@@ -54,6 +56,9 @@ timers, zones, and notes — or import your own card set / saved template
 | Adjust scores | +/− on a counter or scoreboard |
 | Face-down play area | spawn a face-down zone; cards flip as they enter |
 | Resize a zone | drag its corner handle |
+| Take one piece off a token stack | drag it (⌥-drag moves the whole stack) |
+| Board slots (Catan) | pieces snap to matching hex/corner/edge slots |
+| Arrange something just for yourself | right-click → Position: my view only |
 
 Run `node scripts/m4test.mjs`, `dominiontest.mjs`, and `p2ptest.mjs` for the
 integration tests (all need the dev server and Chrome).
