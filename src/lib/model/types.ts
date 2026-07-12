@@ -81,6 +81,26 @@ export interface MatPlacement {
  *  'nothing' hides the mat entirely. */
 export type MatPrivacy = 'public' | 'backs' | 'count' | 'nothing';
 
+// ---- macros (SPEC §15: repeatable motions are configuration) -------------
+
+/** One motion in a macro. `from`/`to` name a mat by label, or a mat GROUP:
+ *  'hands' is built in (the connected players' hands); templates tag mats
+ *  into other groups via `config.groups`. */
+export interface MacroStep {
+  op: 'deal' | 'gather' | 'shuffle';
+  from?: string; // deal/shuffle: source mat label; gather: group or 'table'
+  to?: string; // deal: target group; gather: target mat label
+  n?: number; // deal: cards per hand (default 1)
+}
+
+/** A template-defined quick action ("deal 5 to hands", "reset") — carried on
+ *  the root mat's config and surfaced through the action registry. */
+export interface MacroDef {
+  id: string;
+  label: string;
+  steps: MacroStep[];
+}
+
 /** How a viewer renders a mat — local preference, never synced (SPEC §11). */
 export type ViewMode = 'auto' | 'stack' | 'fan' | 'collapsed';
 
@@ -104,6 +124,11 @@ export type MatEntity = Base<
     color?: string | null;
     /** extent for free/grid/slots mats; null for stack/fan (auto-size) */
     size: { w: number; h: number } | null;
+    /** group names this mat belongs to, for macro targets ('hands' is
+     *  implicit — every connected player's hand) */
+    groups?: string[];
+    /** template-defined quick actions; meaningful on the root mat */
+    macros?: MacroDef[];
   },
   {
     /** stack/fan order, index 0 = top; membership authority is child.parent */

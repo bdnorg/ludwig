@@ -25,8 +25,8 @@ node scripts/p2ptest.mjs   # 2-browser P2P integration test (needs dev server + 
 ## Play
 
 Open the app, enter a name, pick a template (sandbox, 52-card deck,
-Dominion, or Settlers of Catan), start a table, and send the invite link to
-friends. The lobby remembers every player this browser has used — pick one
+Dominion, Settlers of Catan — or import any exported table file), start a
+table, and send the invite link to friends. The lobby remembers every player this browser has used — pick one
 from the "Playing as" dropdown (each tab can sit at the table as a
 different player). Saved tables reappear under "My tables" in the lobby — rename,
 reopen, or delete them there. Use
@@ -67,9 +67,13 @@ timers, zones, and notes — or import your own card set / saved template
 | Take one piece off a token stack | drag it (⌥-drag moves the whole stack) |
 | Board slots (Catan) | pieces snap to matching hex/corner/edge slots |
 | Arrange something just for yourself | right-click → Position: my view only |
+| Deal / gather / reset in one click | quick-action strip (template-defined macros) |
+| How it all works | the lobby's "how it works" page (#/help) |
 
-Run `node scripts/m4test.mjs`, `dominiontest.mjs`, and `p2ptest.mjs` for the
-integration tests (all need the dev server and Chrome).
+Run `node scripts/m4test.mjs`, `dominiontest.mjs`, `catantest.mjs`,
+`cards52test.mjs`, and `p2ptest.mjs` for the integration tests (all need the
+dev server and Chrome). `LUDWIG_URL=https://…/ node scripts/p2ptest.mjs`
+smoke-tests a deployed site.
 
 ## Deploy
 

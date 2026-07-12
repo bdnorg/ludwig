@@ -137,6 +137,7 @@ export interface MatOpts {
   positioning?: 'absolute' | 'arbitrary';
   locked?: boolean;
   order?: string[];
+  groups?: string[];
 }
 
 export function makeMat(version: Version, pos: Pos, o: MatOpts): MatEntity {
@@ -162,6 +163,7 @@ export function makeMat(version: Version, pos: Pos, o: MatOpts): MatEntity {
       image: o.image ?? null,
       color: o.color ?? null,
       size: o.size ?? null,
+      groups: o.groups,
     },
     state: { order: o.order ?? [] },
   };

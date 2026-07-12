@@ -4,15 +4,24 @@
 
   let {
     selection,
+    extras = [],
     onRun,
     onClose,
-  }: { selection: Entity | null; onRun: (a: UiAction) => void; onClose: () => void } = $props();
+  }: {
+    selection: Entity | null;
+    /** selection-independent actions (table macros) always on offer */
+    extras?: UiAction[];
+    onRun: (a: UiAction) => void;
+    onClose: () => void;
+  } = $props();
 
   let filter = $state('');
   let idx = $state(0);
 
   const applicable = $derived(
-    actionsFor(selection).filter((a) => a.label.toLowerCase().includes(filter.toLowerCase())),
+    [...actionsFor(selection), ...extras].filter((a) =>
+      a.label.toLowerCase().includes(filter.toLowerCase()),
+    ),
   );
 
   function what(sel: Entity | null): string {

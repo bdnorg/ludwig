@@ -22,7 +22,8 @@
   import { connect } from '../net/room';
   import { exportTable, loadMeta } from '../state/persist';
   import { applyPendingTemplate } from '../state/templates';
-  import { ACTIONS, actionsFor, actionForKey, uiHooks, type UiAction } from './actions';
+  import { ACTIONS, actionsFor, actionForKey, macroActions, uiHooks, type UiAction } from './actions';
+  import QuickActions from './QuickActions.svelte';
   import type { MenuItem } from './menu';
   import EntityView from './EntityView.svelte';
   import MatSettings from './MatSettings.svelte';
@@ -586,9 +587,14 @@
     return { x: o.x + e.pos.x + 88, y: o.y + e.pos.y, z: table.maxZ() + 1, rot: 0 };
   };
 
-  function runAction(a: UiAction, sel: Entity) {
-    if (a.needsMat) beginSend(a, sel);
-    else a.run(sel);
+  /** Macros take no selection; every other action arrives via actionsFor(sel)
+   *  and therefore has one. */
+  function runAction(a: UiAction, sel: Entity | null) {
+    if (a.needsMat) {
+      if (sel) beginSend(a, sel);
+      return;
+    }
+    a.run(sel as Entity);
   }
 
   function onMenu(e: PointerEvent | MouseEvent, ent: Entity) {
@@ -1097,6 +1103,7 @@
     </div>
   </div>
 
+  <QuickActions />
   <Roster />
   <HandTray onCardGrab={(e, id, matId) => startGhostDrag(e, id, matId)} />
   <LogPanel />
@@ -1169,9 +1176,10 @@
   {#if paletteOpen}
     <Palette
       selection={paletteSel}
+      extras={macroActions()}
       onRun={(a) => {
         paletteOpen = false;
-        if (paletteSel) runAction(a, paletteSel);
+        runAction(a, paletteSel);
       }}
       onClose={() => (paletteOpen = false)}
     />

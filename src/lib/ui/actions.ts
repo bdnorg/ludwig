@@ -5,7 +5,8 @@
 
 import type { Entity, MatEntity, Pos } from '../model/types';
 import * as ops from '../model/ops';
-import { canSeeFaces, matItems } from '../model/mats';
+import { canSeeFaces, matItems, rootMat } from '../model/mats';
+import { runMacro } from '../model/macros';
 import { table } from '../state/store.svelte';
 
 export interface RunArgs {
@@ -184,6 +185,25 @@ export const ACTIONS: UiAction[] = [
 export function actionsFor(sel: Entity | null): UiAction[] {
   if (!sel) return [];
   return ACTIONS.filter((a) => a.appliesTo(sel));
+}
+
+/** Template-defined macros from the root mat, as registry actions (SPEC §15).
+ *  They need no selection — the whole table is their subject. Surfaced in
+ *  the quick-action strip and the command palette. */
+export function macroActions(): UiAction[] {
+  const root = rootMat(table.state);
+  return (root?.config.macros ?? []).map((m) => ({
+    id: `macro:${m.id}`,
+    label: m.label,
+    icon: '▶',
+    appliesTo: () => true,
+    run: () => {
+      const muts = runMacro(table, table.snapshot(), m, table.connectedHands());
+      if (muts.length === 0) return;
+      table.commit(muts);
+      table.logMsg(`${table.playerName(table.me.id)} ran “${m.label}”`);
+    },
+  }));
 }
 
 /** Resolve a pressed key against the selection (same key may serve several

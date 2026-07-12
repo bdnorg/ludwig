@@ -7,9 +7,10 @@ export function newRoomCode(): string {
   return `${ADJ[randInt(ADJ.length)]}-${NOUN[randInt(NOUN.length)]}-${randInt(90) + 10}`;
 }
 
-export function parseHash(): { room: string | null } {
+export function parseHash(): { room: string | null; page: 'help' | null } {
+  if (/^#\/help\b/.test(location.hash)) return { room: null, page: 'help' };
   const m = location.hash.match(/^#\/t\/([\w-]+)/);
-  return { room: m ? m[1] : null };
+  return { room: m ? m[1] : null, page: null };
 }
 
 export function inviteLink(room: string): string {

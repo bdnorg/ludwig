@@ -2,7 +2,20 @@
   import { newRoomCode } from '../roomcode';
   import { listPlayers, loadPlayer, newPlayer, savePlayer } from '../state/player';
   import { deleteTable, listTables, renameTable } from '../state/persist';
-  import { TEMPLATES, requestTemplate, type TemplateId } from '../state/templates';
+  import { requestImport, requestTemplate, TEMPLATES, type TemplateId } from '../state/templates';
+
+  let importInput: HTMLInputElement;
+  async function importTemplate(file: File) {
+    try {
+      const snap = JSON.parse(await file.text());
+      if (!snap?.entities) throw new Error('not a ludwig table file');
+      persistName();
+      requestImport(snap);
+      location.hash = `#/t/${newRoomCode()}`;
+    } catch (err) {
+      alert(`Import failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
 
   let roster = $state(listPlayers());
   let player = $state(loadPlayer());
@@ -64,7 +77,7 @@
 
 <div class="lobby">
   <h1>ludwig</h1>
-  <p class="tag">a table for playing games — bring your own rules</p>
+  <p class="tag">a table for playing games — bring your own rules · <a href="#/help">how it works</a></p>
 
   <div class="who">
     {#if roster.filter((p) => p.name).length > 0}
@@ -95,6 +108,26 @@
         <span>{t.blurb}</span>
       </button>
     {/each}
+    <button
+      class="tmpl"
+      disabled={!player.name.trim()}
+      title="start a table from an exported ludwig file"
+      onclick={() => importInput.click()}
+    >
+      <strong>⇪ Import a template…</strong>
+      <span>Any exported table file — a save doubles as a template.</span>
+    </button>
+    <input
+      type="file"
+      accept="application/json"
+      bind:this={importInput}
+      hidden
+      onchange={(e) => {
+        const f = e.currentTarget.files?.[0];
+        if (f) importTemplate(f);
+        e.currentTarget.value = '';
+      }}
+    />
   </div>
 
   <button class="primary" onclick={createTable} disabled={!player.name.trim()}>
@@ -143,6 +176,9 @@
   .tag {
     margin: -0.8rem 0 0.5rem;
     color: var(--muted);
+  }
+  .tag a {
+    color: var(--accent);
   }
   label {
     display: flex;

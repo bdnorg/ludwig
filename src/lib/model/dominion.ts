@@ -109,6 +109,7 @@ export function dominionTable(ctx: OpCtx, origin: Pos): Mutation[] {
   const zone = makeMat(ctx.next(), at(3, 2.9), {
     ...matPresets.zone('Play area'),
     size: { w: GAP_X * 5 - 28, h: CARD_H + 60 },
+    groups: ['play'], // macro target: "gather from play"
   });
   const note: NoteEntity = {
     id: newId('note'),
