@@ -67,7 +67,7 @@ export function dominionTable(ctx: OpCtx, origin: Pos): Mutation[] {
       ...buildCardSet(
         ctx,
         {
-          name: spec.title,
+          name: spec.title!, // dominion piles always carry a title
           facePolicy: 'up',
           shuffle: false,
           cards: [{ ...spec, count: count ?? spec.count ?? 1 }],

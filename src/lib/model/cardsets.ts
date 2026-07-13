@@ -11,9 +11,14 @@ import { shuffled } from './rng';
 import { CARD_W, CARD_H } from './cards52';
 
 export interface CardSpec {
-  title: string;
+  /** title/body/sub: Dominion-style text cards */
+  title?: string;
   body?: string;
   sub?: string; // bottom line, e.g. "$5 · Action"
+  /** corner/center: playing-card layout ("A♠" / "♠") — the 52-card deck is
+   *  pure config too (M18) */
+  corner?: string;
+  center?: string;
   color?: string; // title/accent color
   image?: string; // optional art URL (used instead of text)
   count?: number; // copies in the deck (default 1)
@@ -31,10 +36,11 @@ export function validateCardSet(raw: unknown): CardSetSpec {
   if (!spec || typeof spec.name !== 'string' || !Array.isArray(spec.cards) || spec.cards.length === 0)
     throw new Error('card set needs a "name" and a non-empty "cards" array');
   for (const c of spec.cards) {
-    if (typeof c.title !== 'string' || c.title.length === 0)
-      throw new Error('every card needs a "title"');
+    const label = c.title ?? c.corner;
+    if (typeof label !== 'string' || label.length === 0)
+      throw new Error('every card needs a "title" (text card) or "corner" (playing card)');
     if (c.count !== undefined && (!Number.isInteger(c.count) || c.count < 1 || c.count > 200))
-      throw new Error(`bad count on "${c.title}" (1–200)`);
+      throw new Error(`bad count on "${label}" (1–200)`);
   }
   if ((spec.cards.reduce((n, c) => n + (c.count ?? 1), 0)) > 1000)
     throw new Error('card set too large (max 1000 cards)');
@@ -51,6 +57,8 @@ export function buildCardSet(ctx: OpCtx, spec: CardSetSpec, pos: Pos): Mutation[
         title: c.title,
         body: c.body,
         sub: c.sub,
+        corner: c.corner,
+        center: c.center,
         color: c.color,
         image: c.image,
       };

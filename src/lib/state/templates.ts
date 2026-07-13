@@ -8,11 +8,13 @@ import { standardDeck } from '../model/cards52';
 import { dominionTable } from '../model/dominion';
 import { catanMacros, catanTable } from '../model/catan';
 import { cardTableMacros } from '../model/macros';
+import { buildGamebox, validateGamebox, type GameboxManifest } from '../model/gamebox';
 import { ROOT_MAT_ID } from '../model/mats';
 import type { TableStore } from './store.svelte';
 
 const KEY = 'ludwig:pending-template';
 const IMPORT_KEY = 'ludwig:pending-import';
+const GAMEBOX_KEY = 'ludwig:pending-gamebox';
 
 export const TEMPLATES = [
   { id: 'sandbox', name: 'Empty sandbox', blurb: 'A bare table — add anything from the palette.' },
@@ -30,6 +32,12 @@ export function requestTemplate(id: TemplateId): void {
 /** Stash an imported table file to seed the next room (lobby import). */
 export function requestImport(snap: TableState): void {
   sessionStorage.setItem(IMPORT_KEY, JSON.stringify(snap));
+}
+
+/** Stash a gamebox manifest (M18: a fetched built-in or an uploaded
+ *  package) to instantiate into the next room. Callers validate first. */
+export function requestGamebox(manifest: GameboxManifest): void {
+  sessionStorage.setItem(GAMEBOX_KEY, JSON.stringify(manifest));
 }
 
 /** Macros live on the root mat: behavior is configuration (SPEC §15). */
@@ -59,6 +67,23 @@ export function applyPendingTemplate(store: TableStore): void {
       snap.tombstones ??= {};
       snap.log ??= {};
       store.receiveSnapshot(snap);
+    } catch {
+      /* corrupt stash — leave the fresh table */
+    }
+    return;
+  }
+
+  // gamebox packages: pure config, instantiated by the loader (M18)
+  const rawBox = sessionStorage.getItem(GAMEBOX_KEY);
+  if (rawBox) {
+    sessionStorage.removeItem(GAMEBOX_KEY);
+    sessionStorage.removeItem(KEY);
+    if (hasContent) return;
+    try {
+      const manifest = validateGamebox(JSON.parse(rawBox));
+      const { muts, macros } = buildGamebox(store, manifest);
+      store.emit(muts);
+      if (macros.length > 0) setRootMacros(store, macros);
     } catch {
       /* corrupt stash — leave the fresh table */
     }

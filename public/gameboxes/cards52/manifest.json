@@ -1,0 +1,321 @@
+{
+  "gamebox": 1,
+  "name": "52-card deck",
+  "blurb": "Poker, hearts, rummy… a shuffled standard deck.",
+  "version": "1.0.0",
+  "layout": [
+    {
+      "type": "cardset",
+      "at": [
+        560,
+        240
+      ],
+      "spec": {
+        "name": "Deck",
+        "facePolicy": "down",
+        "shuffle": true,
+        "cards": [
+          {
+            "corner": "A♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "2♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "3♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "4♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "5♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "6♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "7♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "8♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "9♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "10♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "J♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "Q♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "K♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "A♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "2♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "3♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "4♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "5♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "6♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "7♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "8♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "9♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "10♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "J♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "Q♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "K♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "A♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "2♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "3♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "4♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "5♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "6♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "7♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "8♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "9♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "10♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "J♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "Q♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "K♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "A♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "2♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "3♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "4♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "5♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "6♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "7♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "8♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "9♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "10♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "J♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "Q♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "K♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          }
+        ]
+      }
+    }
+  ],
+  "macros": [
+    {
+      "id": "deal5",
+      "label": "Deal 5 to hands",
+      "steps": [
+        {
+          "op": "deal",
+          "from": "Deck",
+          "to": "hands",
+          "n": 5
+        }
+      ]
+    },
+    {
+      "id": "reset",
+      "label": "Gather & shuffle",
+      "steps": [
+        {
+          "op": "gather",
+          "from": "hands",
+          "to": "Deck"
+        },
+        {
+          "op": "gather",
+          "from": "play",
+          "to": "Deck"
+        },
+        {
+          "op": "gather",
+          "from": "table",
+          "to": "Deck"
+        },
+        {
+          "op": "shuffle",
+          "from": "Deck"
+        }
+      ]
+    }
+  ]
+}

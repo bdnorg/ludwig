@@ -1,0 +1,211 @@
+{
+  "gamebox": 1,
+  "name": "Euchre",
+  "blurb": "24-card deck (9–A), deal 5, trump lives in the players’ heads.",
+  "version": "1.0.0",
+  "layout": [
+    {
+      "type": "cardset",
+      "at": [
+        560,
+        240
+      ],
+      "spec": {
+        "name": "Deck",
+        "facePolicy": "down",
+        "shuffle": true,
+        "cards": [
+          {
+            "corner": "9♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "10♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "J♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "Q♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "K♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "A♠",
+            "center": "♠",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "9♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "10♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "J♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "Q♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "K♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "A♥",
+            "center": "♥",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "9♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "10♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "J♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "Q♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "K♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "A♦",
+            "center": "♦",
+            "color": "#c0303a"
+          },
+          {
+            "corner": "9♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "10♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "J♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "Q♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "K♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          },
+          {
+            "corner": "A♣",
+            "center": "♣",
+            "color": "#1b1b20"
+          }
+        ]
+      }
+    },
+    {
+      "type": "counter",
+      "at": [
+        340,
+        240
+      ],
+      "label": "Us"
+    },
+    {
+      "type": "counter",
+      "at": [
+        340,
+        330
+      ],
+      "label": "Them"
+    },
+    {
+      "type": "note",
+      "at": [
+        340,
+        420
+      ],
+      "text": "Deal 5 each (macro), turn up the top card for trump talk. First team to 10."
+    }
+  ],
+  "macros": [
+    {
+      "id": "deal5",
+      "label": "Deal 5 to hands",
+      "steps": [
+        {
+          "op": "deal",
+          "from": "Deck",
+          "to": "hands",
+          "n": 5
+        }
+      ]
+    },
+    {
+      "id": "reset",
+      "label": "Gather & shuffle",
+      "steps": [
+        {
+          "op": "gather",
+          "from": "hands",
+          "to": "Deck"
+        },
+        {
+          "op": "gather",
+          "from": "play",
+          "to": "Deck"
+        },
+        {
+          "op": "gather",
+          "from": "table",
+          "to": "Deck"
+        },
+        {
+          "op": "shuffle",
+          "from": "Deck"
+        }
+      ]
+    }
+  ],
+  "reference": [
+    {
+      "title": "Quick rules",
+      "md": "Deal 5 each. Turn up the top card; bidding names trump. Jack of trump (right bower) is high, other jack of same color (left bower) second. Take 3+ tricks to score 1; all 5 = 2; euchred = 2 for defenders. First to 10."
+    }
+  ]
+}
