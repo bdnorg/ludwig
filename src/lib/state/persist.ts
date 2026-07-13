@@ -128,7 +128,9 @@ function download(name: string, data: unknown): void {
 }
 
 /** Templates are ordinary saves (SPEC §15): export the table as-is — save
- *  before dealing and you have a template. No special stripping. */
+ *  before dealing and you have a template. The log rides along (an export
+ *  is a resumable game; use "clear log" first for a pristine start);
+ *  tombstones are dead weight in a fresh room and are dropped (v4 §11). */
 export function exportTable(room: string, s: TableState): void {
-  download(`ludwig-${room}.json`, s);
+  download(`ludwig-${room}.json`, { ...s, tombstones: {} });
 }

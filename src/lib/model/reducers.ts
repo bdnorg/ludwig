@@ -19,6 +19,10 @@ export interface TableState {
    *  can't resurrect them */
   tombstones: Record<string, Version>;
   log: Record<string, LogEntry>;
+  /** clear-log watermark (v4 §11): union-CRDT logs can't delete entries,
+   *  so entries at or before this moment are dropped on merge and render —
+   *  a peer holding old entries can't resurrect them. */
+  logCleared?: { at: number; version: Version };
 }
 
 export function emptyTable(): TableState {
@@ -30,13 +34,21 @@ const LOG_CAP = 300;
 export type Mutation =
   | { t: 'put'; entity: Entity }
   | { t: 'del'; id: string; version: Version }
-  | { t: 'log'; id: string; entry: LogEntry };
+  | { t: 'log'; id: string; entry: LogEntry }
+  | { t: 'clear-log'; at: number; version: Version };
 
 /** Applies one mutation iff its version beats what we have. Returns whether
  *  it changed anything. Mutates `s` in place (callers hold reactive state). */
 export function applyMutation(s: TableState, m: Mutation): boolean {
+  if (m.t === 'clear-log') {
+    if (s.logCleared && !newerThan(m.version, s.logCleared.version)) return false;
+    s.logCleared = { at: m.at, version: m.version };
+    for (const [id, entry] of Object.entries(s.log)) if (entry.at <= m.at) delete s.log[id];
+    return true;
+  }
   if (m.t === 'log') {
     if (s.log[m.id]) return false;
+    if (s.logCleared && m.entry.at <= s.logCleared.at) return false;
     s.log[m.id] = m.entry;
     trimLog(s);
     return true;
@@ -74,6 +86,10 @@ export function mergeSnapshot(s: TableState, snap: TableState): boolean {
     changed = applyMutation(s, { t: 'put', entity: e }) || changed;
   for (const [id, version] of Object.entries(snap.tombstones))
     changed = applyMutation(s, { t: 'del', id, version }) || changed;
+  if (snap.logCleared)
+    changed =
+      applyMutation(s, { t: 'clear-log', at: snap.logCleared.at, version: snap.logCleared.version }) ||
+      changed;
   for (const [id, entry] of Object.entries(snap.log ?? {}))
     changed = applyMutation(s, { t: 'log', id, entry }) || changed;
   return changed;
@@ -96,7 +112,7 @@ export function invertMutations(s: TableState, muts: Mutation[]): Mutation[] {
   const seen = new Set<string>();
   const out: Mutation[] = [];
   for (const m of muts) {
-    if (m.t === 'log') continue; // log entries are permanent, not undoable
+    if (m.t === 'log' || m.t === 'clear-log') continue; // the log is not undoable
     const id = m.t === 'put' ? m.entity.id : m.id;
     if (seen.has(id)) continue;
     seen.add(id);
@@ -115,5 +131,6 @@ export function maxClock(s: TableState): number {
   let c = 0;
   for (const e of Object.values(s.entities)) c = Math.max(c, e.version.clock);
   for (const v of Object.values(s.tombstones)) c = Math.max(c, v.clock);
+  if (s.logCleared) c = Math.max(c, s.logCleared.version.clock);
   return c;
 }

@@ -5,7 +5,10 @@
     canSeeCount,
     canSeeExistence,
     canSeeFaces,
+    canSeePositions,
     faceVisible,
+    isOwnerOf,
+    isPrivate,
     isStackedKind,
     matItems,
     privileged,
@@ -57,14 +60,28 @@
   const isPrivileged = $derived(mat ? privileged(mat, me, connectedIds) : false);
   const showCount = $derived(mat ? canSeeCount(mat, me) : true);
 
+  // private mats are visually distinct: thick solid border, extra for MINE
+  // (v4 §10 — it should be obvious at a glance which private mats are yours)
+  const privLevel = $derived(
+    mat && isPrivate(mat) ? (isOwnerOf(mat, me) ? 'mine' : 'other') : 'none',
+  );
+
   const view = $derived.by((): ViewMode | 'region' => {
     if (!mat) return 'auto';
-    if (isRegion) return 'region';
+    if (isRegion) {
+      // positions hidden: non-owners get a count chip, not a live board
+      if (!canSeePositions(mat, me)) return 'collapsed';
+      return 'region';
+    }
     const pref = table.views[mat.id];
     if (pref && pref !== 'auto') return pref;
     // 'count' privacy: non-owners get the count chip, not the backs
     if (mat.config.privacy === 'count' && !canSeeFaces(mat, me)) return 'collapsed';
-    if (mat.config.placement.type === 'fan') return canSeeFaces(mat, me) ? 'fan' : 'stack';
+    if (mat.config.placement.type === 'fan') {
+      if (canSeeFaces(mat, me)) return 'fan';
+      // fanned backs only if I may watch positions; else an opaque pile
+      return canSeePositions(mat, me) ? 'fan' : 'stack';
+    }
     return 'stack';
   });
 
@@ -112,6 +129,8 @@
     class:locked={entity.locked}
     class:selected={table.isSelected(entity.id)}
     class:matlike={showHandles}
+    class:priv-other={privLevel === 'other'}
+    class:priv-mine={privLevel === 'mine'}
     style:left="{pos.x}px"
     style:top="{pos.y}px"
     style:z-index={z}
@@ -291,6 +310,18 @@
     outline: 1.5px dashed rgba(255, 255, 255, 0.45);
     outline-offset: 4px;
     border-radius: 8px;
+  }
+  /* private mats: thick SOLID ring (dotted means ordinary, v4 §10);
+     yours is extra thick and accented so ownership reads at a glance */
+  .entity.priv-other,
+  .entity.priv-mine {
+    border-radius: 8px;
+  }
+  .entity.priv-other {
+    box-shadow: 0 0 0 2.5px #8791a3;
+  }
+  .entity.priv-mine {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 85%, #fff);
   }
   .entity.selected {
     outline: 2px solid #4da3ff;

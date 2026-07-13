@@ -56,6 +56,9 @@ timers, zones, and notes — or import your own card set / saved template
 | Send to a mat | s, then the mat's letter (badges appear) |
 | Change my view of a mat | right-click → "My view" (fan/stack/collapsed) |
 | Mat label / color / grid / privacy | right-click a mat → Mat settings… (changes are logged) |
+| Private mats | thick solid ring (extra-thick accent = yours); owners list + hidden positions in Mat settings |
+| Arrange others' private mats | right-click the felt → to the side / in a circle (your view only) |
+| Clear the shared log | log panel → clear log (do this before exporting a pristine template) |
 | Felt color, table grid, entry rules | right-click the felt → Table settings… |
 | Pin a mat to your tray / unpin | right-click a mat (hands start pinned) |
 | Annotate anything | right-click → Annotation… (📝 badge; hover to read) |

@@ -7,6 +7,8 @@
   import {
     canSeeFaces,
     getMat,
+    isOwnerOf,
+    isPrivate,
     isStackedKind,
     makeMat,
     matItems,
@@ -1094,6 +1096,39 @@
     menu = { x: e.clientX, y: e.clientY, items: spawnMenuItems() };
   }
 
+  /** Arrange OTHER players' private mats in MY view only (v4 §10): their
+   *  placement is per-viewer (arbitrary positioning), so this is local. */
+  function arrangeOthersPrivate(mode: 'side' | 'circle') {
+    const mats = Object.values(table.state.entities).filter(
+      (e): e is MatEntity =>
+        e.kind === 'mat' &&
+        e.id !== ROOT_MAT_ID &&
+        isPrivate(e) &&
+        !isOwnerOf(e, table.me.id) &&
+        e.positioning === 'arbitrary' &&
+        !table.isPinned(e.id),
+    );
+    if (mats.length === 0) return;
+    const r = viewportEl.getBoundingClientRect();
+    if (mode === 'side') {
+      const p = screenToTable(r.left + 90, r.top + 120);
+      mats.forEach((m, i) =>
+        table.setPosOverride(m.id, { x: p.x, y: p.y + i * 190, z: m.pos.z }),
+      );
+    } else {
+      const c = screenToTable(r.left + r.width / 2, r.top + r.height / 2);
+      const rad = Math.min(r.width, r.height) / (2.3 * (table.uiScale || 1));
+      mats.forEach((m, i) => {
+        const a = -Math.PI / 2 + (i * 2 * Math.PI) / mats.length;
+        table.setPosOverride(m.id, {
+          x: Math.round(c.x + rad * Math.cos(a) - 70),
+          y: Math.round(c.y + rad * Math.sin(a) - 50),
+          z: m.pos.z,
+        });
+      });
+    }
+  }
+
   // right-clicking the felt opens the ROOT MAT's menu — the table is a mat
   function onFeltMenu(e: MouseEvent) {
     e.preventDefault();
@@ -1105,6 +1140,14 @@
         { label: '⚙ Table settings…', run: () => (settingsMatId = ROOT_MAT_ID) },
         { label: '＋ Add to table…', run: () => (menu = { x, y, items: spawnMenuItems() }) },
         { label: 'Select all', run: () => table.select(selectableIdsInRect()) },
+        {
+          label: "Arrange others' private mats: to the side (my view)",
+          run: () => arrangeOthersPrivate('side'),
+        },
+        {
+          label: "Arrange others' private mats: in a circle (my view)",
+          run: () => arrangeOthersPrivate('circle'),
+        },
       ],
     };
   }

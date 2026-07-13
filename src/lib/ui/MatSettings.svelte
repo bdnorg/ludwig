@@ -45,6 +45,22 @@
   let showSum = $state(mat.config.showSum ?? '');
   // svelte-ignore state_referenced_locally
   let supply = $state(mat.config.supply ?? 'normal');
+  // positions default HIDDEN when a mat first turns private; reflect the
+  // stored rule only if it already was private
+  // svelte-ignore state_referenced_locally
+  let showPositions = $state(
+    inferPrivacy(mat) !== 'public' && (mat.config.visibility.positions ?? 'public') === 'public',
+  );
+  // svelte-ignore state_referenced_locally
+  let owners = $state<string[]>([
+    ...new Set([...(mat.config.ownerId ? [mat.config.ownerId] : []), ...(mat.config.owners ?? [])]),
+  ]);
+  const knownPlayers = $derived([
+    ...new Set([table.me.id, ...Object.values(table.peers), ...owners]),
+  ]);
+  function toggleOwner(pid: string) {
+    owners = owners.includes(pid) ? owners.filter((o) => o !== pid) : [...owners, pid];
+  }
 
   const COLORS: Array<[string, string]> = [
     ['none', ''],
@@ -96,7 +112,13 @@
       if (changedPrivacy) {
         m.config.privacy = privacy;
         m.config.visibility = privacyVisibility(privacy);
-        if (privacy !== 'public' && !m.config.ownerId) m.config.ownerId = table.me.id;
+      }
+      if (!isRoot && privacy !== 'public') {
+        // owner list (v4 §10) + per-viewer placement for private mats
+        m.config.ownerId = owners[0] ?? m.config.ownerId ?? table.me.id;
+        m.config.owners = owners.length > 1 ? owners.slice(1) : undefined;
+        m.config.visibility.positions = showPositions ? 'public' : 'owner';
+        m.positioning = 'arbitrary';
       }
     });
     if (changedPrivacy) {
@@ -190,10 +212,25 @@
       </select>
     </label>
     {#if privacy !== 'public'}
-      <p class="hint">
-        owner: {table.playerName(mat.config.ownerId ?? table.me.id)} — changes are logged for
-        everyone
-      </p>
+      <div class="field">
+        <span>Owners (see everything; changes are logged)</span>
+        <div class="owners">
+          {#each knownPlayers as pid (pid)}
+            <label class="inline">
+              <input
+                type="checkbox"
+                checked={owners.includes(pid) || (owners.length === 0 && pid === table.me.id)}
+                onchange={() => toggleOwner(pid)}
+              />
+              {table.playerName(pid)}{pid === table.me.id ? ' (you)' : ''}
+            </label>
+          {/each}
+        </div>
+      </div>
+      <label class="inline">
+        <input type="checkbox" data-field="positions" bind:checked={showPositions} />
+        others see item positions (fanned backs, live moves)
+      </label>
     {/if}
   {/if}
 
@@ -212,11 +249,13 @@
   }
   .dialog {
     position: fixed;
-    top: 14vh;
+    top: 8vh;
     left: 50%;
     transform: translateX(-50%);
     width: 22rem;
     max-width: 90vw;
+    max-height: 82vh;
+    overflow-y: auto;
     background: var(--panel);
     border: 1px solid #454f60;
     border-radius: 10px;
@@ -258,10 +297,18 @@
   .swatch.selected {
     outline: 2px solid var(--accent);
   }
-  .hint {
-    margin: -4px 0 0;
-    font-size: 0.68rem;
-    color: var(--muted);
+  .owners {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+  label.inline {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+  label.inline input {
+    width: auto;
   }
   .row {
     display: flex;

@@ -103,14 +103,35 @@ export function ruleAllows(rule: VisibilityRule, viewerId: string, ownerId: stri
   return rule.includes(viewerId);
 }
 
+/** Owner or on the owners list (v4 §10). */
+export function isOwnerOf(mat: MatEntity, viewerId: string): boolean {
+  return mat.config.ownerId === viewerId || (mat.config.owners ?? []).includes(viewerId);
+}
+
+function allows(mat: MatEntity, rule: VisibilityRule, viewerId: string): boolean {
+  if (rule === 'public') return true;
+  if (rule === 'owner') return isOwnerOf(mat, viewerId);
+  return rule.includes(viewerId);
+}
+
 export function canSeeFaces(mat: MatEntity, viewerId: string): boolean {
-  return ruleAllows(mat.config.visibility.faces, viewerId, mat.config.ownerId);
+  return allows(mat, mat.config.visibility.faces, viewerId);
 }
 export function canSeeCount(mat: MatEntity, viewerId: string): boolean {
-  return ruleAllows(mat.config.visibility.count, viewerId, mat.config.ownerId);
+  return allows(mat, mat.config.visibility.count, viewerId);
 }
 export function canSeeExistence(mat: MatEntity, viewerId: string): boolean {
-  return ruleAllows(mat.config.visibility.existence, viewerId, mat.config.ownerId);
+  return allows(mat, mat.config.visibility.existence, viewerId);
+}
+/** Whether the viewer may watch WHERE items sit (fanned backs, live moves). */
+export function canSeePositions(mat: MatEntity, viewerId: string): boolean {
+  return allows(mat, mat.config.visibility.positions ?? 'public', viewerId);
+}
+
+/** A mat is private when its faces aren't public (v4 §10) — it renders
+ *  with the thick solid border, extra for its owner. */
+export function isPrivate(mat: MatEntity): boolean {
+  return mat.config.visibility.faces !== 'public';
 }
 
 /** Is this card's front visible to viewer? An explicitly face-up card is
@@ -137,11 +158,14 @@ export function describeRule(rule: VisibilityRule): string {
 
 // ---- privacy presets (SPEC §15) ------------------------------------------
 
-/** The visibility spectrum each preset stands for. */
+/** The visibility spectrum each preset stands for. Private presets hide
+ *  item positions by default — you can't watch the owner rearrange. */
 export function privacyVisibility(p: MatPrivacy): MatVisibility {
-  if (p === 'public') return { faces: 'public', count: 'public', existence: 'public' };
-  if (p === 'nothing') return { faces: 'owner', count: 'owner', existence: 'owner' };
-  return { faces: 'owner', count: 'public', existence: 'public' }; // backs | count
+  if (p === 'public')
+    return { faces: 'public', count: 'public', existence: 'public', positions: 'public' };
+  if (p === 'nothing')
+    return { faces: 'owner', count: 'owner', existence: 'owner', positions: 'owner' };
+  return { faces: 'owner', count: 'public', existence: 'public', positions: 'owner' }; // backs | count
 }
 
 // ---- factories -----------------------------------------------------------

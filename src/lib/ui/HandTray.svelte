@@ -106,10 +106,11 @@
     gap: 14px;
     align-items: center;
   }
-  /* privileged view: only I can see these faces (SPEC §11) */
+  /* my private mat: thick solid accent, same language as on the table (v4 §10) */
   .pinmat.priv {
-    border-color: color-mix(in srgb, var(--accent) 60%, #454f60);
-    border-style: dashed;
+    border-color: var(--accent);
+    border-width: 3px;
+    border-style: solid;
   }
   .side {
     display: flex;

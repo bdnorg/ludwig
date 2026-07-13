@@ -12,6 +12,12 @@
   function when(at: number): string {
     return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
+
+  /** Clear for everyone via the LWW watermark (v4 §11) — do this before
+   *  exporting a pristine start-of-game template. */
+  function clearLog() {
+    table.emit([{ t: 'clear-log', at: Date.now(), version: table.next() }]);
+  }
 </script>
 
 <div class="logpanel" class:open>
@@ -20,6 +26,11 @@
   </button>
   {#if open}
     <div class="entries">
+      {#if entries.length > 0}
+        <button class="clear" title="clear the log for everyone" onclick={clearLog}>
+          clear log
+        </button>
+      {/if}
       {#each entries as [id, e] (id)}
         <div class="entry">
           <span class="time">{when(e.at)}</span>
@@ -72,5 +83,11 @@
     color: var(--muted);
     font-size: 0.75rem;
     margin: 2px;
+  }
+  .clear {
+    align-self: flex-end;
+    font-size: 0.65rem;
+    padding: 1px 8px;
+    color: var(--muted);
   }
 </style>

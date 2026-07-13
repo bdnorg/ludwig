@@ -182,17 +182,18 @@ export class TableStore implements OpCtx {
     this.emit(muts);
   }
 
-  /** Undo my most recent action: replay its inverse as a fresh LWW write. */
+  /** Undo my most recent action: replay its inverse as a fresh LWW write.
+   *  Inverses only ever contain puts and dels (the log is not undoable). */
   undo(): void {
     const inverse = this.undoStack.pop();
     this.undoDepth = this.undoStack.length;
     if (!inverse) return;
     this.emit(
-      inverse.map((m) =>
-        m.t === 'put'
-          ? { t: 'put', entity: { ...m.entity, version: this.next() } }
-          : { t: 'del', id: m.id, version: this.next() },
-      ),
+      inverse.flatMap((m): Mutation[] => {
+        if (m.t === 'put') return [{ t: 'put', entity: { ...m.entity, version: this.next() } }];
+        if (m.t === 'del') return [{ t: 'del', id: m.id, version: this.next() }];
+        return [];
+      }),
     );
   }
 
@@ -200,7 +201,8 @@ export class TableStore implements OpCtx {
   emit(muts: Mutation[]): void {
     if (muts.length === 0) return;
     applyMutations(this.state, muts);
-    for (const m of muts) delete this.dragPos[m.t === 'put' ? m.entity.id : m.id];
+    for (const m of muts)
+      if (m.t === 'put' || m.t === 'del') delete this.dragPos[m.t === 'put' ? m.entity.id : m.id];
     this.net?.sendMuts(muts);
     this.saveSoon();
   }
@@ -210,7 +212,8 @@ export class TableStore implements OpCtx {
     for (const m of muts)
       if (m.t !== 'log') this.observe(m.t === 'put' ? m.entity.version : m.version);
     applyMutations(this.state, muts);
-    for (const m of muts) delete this.dragPos[m.t === 'put' ? m.entity.id : m.id];
+    for (const m of muts)
+      if (m.t === 'put' || m.t === 'del') delete this.dragPos[m.t === 'put' ? m.entity.id : m.id];
     this.saveSoon();
   }
 

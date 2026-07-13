@@ -29,6 +29,8 @@
         ['Shuffle, deal, search…', 'right-click a deck, or its hover buttons'],
         ['Send to a mat by key', 's, then the mat’s letter (badges appear)'],
         ['Mat label, color, placement, privacy', 'right-click → Mat settings…'],
+        ['Private mats', 'thick solid ring — extra-thick accent means yours; set owners & hidden positions in Mat settings'],
+        ['Arrange others’ private mats', 'right-click the felt → side / circle (your view only)'],
         ['Pin a mat to your tray', 'right-click it (your hand starts pinned)'],
         ['Reveal your hand', '“reveal all” in the tray (logged for everyone)'],
       ],

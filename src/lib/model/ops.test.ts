@@ -2,8 +2,11 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import type { CardEntity, MatEntity } from './types';
 import {
   canSeeFaces,
+  canSeePositions,
   faceVisible,
   handIdFor,
+  isOwnerOf,
+  isPrivate,
   isStackedKind,
   makeMat,
   makeRootMat,
@@ -219,6 +222,23 @@ describe('visibility (SPEC §10–11)', () => {
     expect(privileged(open, 'alice', ['alice', 'bob'])).toBe(false);
   });
 
+  it('owner LISTS: every listed player passes owner rules (v4 §10)', () => {
+    const m = makeMat(peer.next(), { x: 0, y: 0, z: 0, rot: 0 }, {
+      label: 'Team hand',
+      ownerId: 'alice',
+      privacy: 'backs',
+    });
+    m.config.owners = ['bob'];
+    expect(canSeeFaces(m, 'alice')).toBe(true);
+    expect(canSeeFaces(m, 'bob')).toBe(true);
+    expect(canSeeFaces(m, 'carol')).toBe(false);
+    expect(isOwnerOf(m, 'bob')).toBe(true);
+    expect(isPrivate(m)).toBe(true);
+    // positions default to hidden on private presets
+    expect(canSeePositions(m, 'carol')).toBe(false);
+    expect(canSeePositions(m, 'bob')).toBe(true);
+  });
+
   it('explicit-list visibility admits exactly the listed players', () => {
     const m = makeMat(peer.next(), { x: 0, y: 0, z: 0, rot: 0 }, {
       label: 'Secret',
@@ -231,10 +251,10 @@ describe('visibility (SPEC §10–11)', () => {
 
 describe('everything is a mat (SPEC §15)', () => {
   it('privacy presets map onto the visibility spectrum', () => {
-    expect(privacyVisibility('public')).toEqual({ faces: 'public', count: 'public', existence: 'public' });
-    expect(privacyVisibility('backs')).toEqual({ faces: 'owner', count: 'public', existence: 'public' });
-    expect(privacyVisibility('count')).toEqual({ faces: 'owner', count: 'public', existence: 'public' });
-    expect(privacyVisibility('nothing')).toEqual({ faces: 'owner', count: 'owner', existence: 'owner' });
+    expect(privacyVisibility('public')).toEqual({ faces: 'public', count: 'public', existence: 'public', positions: 'public' });
+    expect(privacyVisibility('backs')).toEqual({ faces: 'owner', count: 'public', existence: 'public', positions: 'owner' });
+    expect(privacyVisibility('count')).toEqual({ faces: 'owner', count: 'public', existence: 'public', positions: 'owner' });
+    expect(privacyVisibility('nothing')).toEqual({ faces: 'owner', count: 'owner', existence: 'owner', positions: 'owner' });
   });
 
   it('hands are ordinary on-table private mats, placed per-viewer', () => {

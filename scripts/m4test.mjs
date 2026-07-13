@@ -505,9 +505,12 @@ ok(
   'duplicate cloned the die on the tray',
 );
 
-// alt-drag bypasses the grid snap inside a grid mat
+// alt-drag bypasses the grid snap inside a grid mat (use the card sitting
+// mid-zone — the one at the zone's origin is half under the mat edge)
 s = await state();
-const zcard = Object.values(s.entities).find((e) => e.kind === 'card' && e.parent === zone.id);
+const zcard = Object.values(s.entities)
+  .filter((e) => e.kind === 'card' && e.parent === zone.id)
+  .sort((a, b) => b.pos.x - a.pos.x)[0];
 const zat = { x: zone.pos.x + zcard.pos.x + 36, y: zone.pos.y + zcard.pos.y + 50 + TOOLBAR };
 await drag(zat, { x: zat.x + 13, y: zat.y + 7 }, { alt: true });
 await settle();
@@ -551,6 +554,47 @@ ok(
     Object.values(s.entities).filter((e) => e.kind === 'card').length === cardsBefore,
   'returning to the supply destroyed the card',
 );
+
+// ---- M16: private mats + clear-log watermark ----
+
+// make the zone private: owner ring, per-viewer placement, logged change
+await page.locator(`[data-entity-id="${zone.id}"]`).click({
+  button: 'right',
+  position: { x: 10, y: zone.config.size.h - 14 }, // bottom-left: clear of cards at (0,0)
+});
+await page.click('.menu button:has-text("Mat settings")');
+await page.selectOption('[data-field="privacy"]', 'backs');
+await page.click('.dialog button:has-text("Save")');
+await settle();
+s = await state();
+const zpriv = Object.values(s.entities).find((e) => e.id === zone.id);
+ok(
+  zpriv.config.visibility.faces === 'owner' &&
+    zpriv.config.ownerId === 'p_tester' &&
+    zpriv.positioning === 'arbitrary' &&
+    zpriv.config.visibility.positions === 'owner',
+  'private mat: owner set, positions hidden, per-viewer placement',
+);
+ok(
+  await page.evaluate(
+    (id) => document.querySelector(`[data-entity-id="${id}"]`)?.classList.contains('priv-mine'),
+    zone.id,
+  ),
+  'my private mat renders with the thick owner ring',
+);
+
+// clear-log: the shared log empties for everyone via the LWW watermark
+s = await state();
+ok(Object.keys(s.log ?? {}).length > 0, 'log has entries before clearing');
+await page.click('.logpanel .head');
+await page.click('.logpanel .clear');
+await settle();
+s = await state();
+ok(
+  Object.keys(s.log ?? {}).length === 0 && s.logCleared?.at > 0,
+  'clear log emptied the shared log via the watermark',
+);
+await page.click('.logpanel .head');
 
 // shift-drag pans the felt (kept out of the way until the end: it moves the
 // coordinate frame)

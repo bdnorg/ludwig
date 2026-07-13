@@ -87,6 +87,27 @@ describe('message log', () => {
     expect(a.log).toEqual(b.log);
     expect(Object.keys(a.log).sort()).toEqual(['l1', 'l2']);
   });
+
+  it('clear-log is a watermark: old entries drop and cannot resurrect (v4 §11)', () => {
+    const a = emptyTable();
+    const b = emptyTable();
+    applyMutations(a, [{ t: 'log', id: 'l1', entry: { at: 10, actor: 'a', text: 'old' } }]);
+    applyMutations(b, [{ t: 'log', id: 'l1', entry: { at: 10, actor: 'a', text: 'old' } }]);
+    // a clears; a NEW entry after the watermark still lands
+    applyMutations(a, [{ t: 'clear-log', at: 50, version: { clock: 9, actor: 'a' } }]);
+    expect(Object.keys(a.log)).toHaveLength(0);
+    applyMutations(a, [{ t: 'log', id: 'l2', entry: { at: 60, actor: 'a', text: 'new' } }]);
+    expect(Object.keys(a.log)).toEqual(['l2']);
+    // b still holds the old entry; merging BOTH ways converges with it gone
+    mergeSnapshot(b, a);
+    mergeSnapshot(a, b);
+    expect(Object.keys(a.log).sort()).toEqual(['l2']);
+    expect(Object.keys(b.log).sort()).toEqual(['l2']);
+    // a stale clear (older version) loses LWW
+    expect(
+      applyMutations(a, [{ t: 'clear-log', at: 5, version: { clock: 3, actor: 'z' } }]),
+    ).toBe(false);
+  });
 });
 
 describe('undo (invertMutations)', () => {
@@ -108,11 +129,12 @@ describe('undo (invertMutations)', () => {
     let clock = 10;
     applyMutations(
       s,
-      inverse.map((m) =>
-        m.t === 'put'
-          ? { t: 'put' as const, entity: { ...m.entity, version: { clock: ++clock, actor: 'a' } } }
-          : { t: 'del' as const, id: m.id, version: { clock: ++clock, actor: 'a' } },
-      ),
+      inverse.map((m) => {
+        if (m.t === 'put')
+          return { t: 'put' as const, entity: { ...m.entity, version: { clock: ++clock, actor: 'a' } } };
+        if (m.t !== 'del') throw new Error('unexpected inverse mutation');
+        return { t: 'del' as const, id: m.id, version: { clock: ++clock, actor: 'a' } };
+      }),
     );
     expect(s.entities['t2']).toBeUndefined();
     expect(s.entities['t1'].pos.x).toBe(before['t1'].pos.x);

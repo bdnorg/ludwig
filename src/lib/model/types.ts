@@ -57,6 +57,10 @@ export interface MatVisibility {
   faces: VisibilityRule; // fronts of contained cards
   count: VisibilityRule; // how many items it holds (advanced)
   existence: VisibilityRule; // whether the mat renders at all (advanced)
+  /** who sees WHERE items sit (fanned backs vs an opaque pile) — you can't
+   *  watch a hand being rearranged unless this allows it (v4 §10).
+   *  Default: public. */
+  positions?: VisibilityRule;
 }
 
 export interface SlotDef {
@@ -139,6 +143,8 @@ export type MatEntity = Base<
     /** keyboard-target letter; null = auto-assigned deterministically */
     letter: string | null;
     ownerId: string | null;
+    /** additional owners (v4 §10) — every listed player passes 'owner' rules */
+    owners?: string[];
     placement: MatPlacement;
     /** applied to cards when they ENTER the mat (never while moving within) */
     faceDefault: 'up' | 'down' | 'keep';
