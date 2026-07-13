@@ -30,16 +30,22 @@ const tiles = Object.values(s.entities).filter(
 );
 ok(tiles.length === 19, `19 hex tiles placed (got ${tiles.length})`);
 
-// pull one road off the red reserve and drop it near an edge slot
+// pull one road off the red reserve pile (an implicit stack mat since M17)
 const reserve = Object.values(s.entities).find(
   (e) => e.kind === 'mat' && e.config.label === 'Red pieces',
 );
-const roadStack = Object.values(s.entities).find(
-  (e) => e.kind === 'token' && e.parent === reserve.id && (e.config.tags ?? []).includes('road'),
+const pilesIn = (st, parent) =>
+  Object.values(st.entities).filter(
+    (e) => e.kind === 'mat' && e.config.implicit && e.parent === parent.id,
+  );
+const pileItems = (st, pile) =>
+  Object.values(st.entities).filter((e) => e.parent === pile.id);
+const roadPile = pilesIn(s, reserve).find((p) =>
+  pileItems(s, p).some((t) => (t.config.tags ?? []).includes('road')),
 );
 const stackScreen = {
-  x: reserve.pos.x + roadStack.pos.x + 18,
-  y: reserve.pos.y + roadStack.pos.y + 5 + TOOLBAR,
+  x: reserve.pos.x + roadPile.pos.x + 18,
+  y: reserve.pos.y + roadPile.pos.y + 5 + TOOLBAR,
 };
 const edge = board.config.placement.slots.find((sl) => sl.accepts?.includes('road') && sl.rot !== 0);
 const edgeScreen = { x: board.pos.x + edge.x, y: board.pos.y + edge.y + TOOLBAR };
@@ -51,14 +57,11 @@ await settle();
 s = await state();
 const placedRoad = Object.values(s.entities).find(
   (e) =>
-    e.kind === 'token' &&
-    e.parent === board.id &&
-    (e.config.tags ?? []).includes('road') &&
-    e.state.count === 1,
+    e.kind === 'token' && e.parent === board.id && (e.config.tags ?? []).includes('road'),
 );
-const stackAfter = Object.values(s.entities).find((e) => e.id === roadStack.id);
-ok(!!placedRoad, 'dragging the road stack pulled ONE road onto the board');
-ok(stackAfter.state.count === 14, `reserve stack down to 14 (got ${stackAfter.state.count})`);
+const roadsLeft = pileItems(s, roadPile).length;
+ok(!!placedRoad, 'dragging the road pile pulled ONE road onto the board');
+ok(roadsLeft === 14, `reserve pile down to 14 (got ${roadsLeft})`);
 // bar tokens render 0.3× as tall as wide — the snap centers on that shape
 const rhw = placedRoad.config.size / 2;
 const rhh = Math.round(placedRoad.config.size * 0.3) / 2;
@@ -72,15 +75,9 @@ const onEdge = board.config.placement.slots.some(
 ok(onEdge, `road snapped to an edge slot with rotation ${placedRoad.pos.rot}°`);
 
 // settlement: pull one onto a vertex — must NOT land on an edge/hex slot
-const setStack = Object.values(s.entities).find(
-  (e) =>
-    e.kind === 'token' &&
-    e.parent === reserve.id &&
-    (e.config.tags ?? []).includes('building') &&
-    e.state.count === 5,
-);
+const setPile = pilesIn(s, reserve).find((p) => pileItems(s, p).length === 5);
 const vertex = board.config.placement.slots.find((sl) => sl.accepts?.includes('building'));
-await page.mouse.move(reserve.pos.x + setStack.pos.x + 11, reserve.pos.y + setStack.pos.y + 11 + TOOLBAR);
+await page.mouse.move(reserve.pos.x + setPile.pos.x + 11, reserve.pos.y + setPile.pos.y + 11 + TOOLBAR);
 await page.mouse.down();
 await page.mouse.move(board.pos.x + vertex.x + 6, board.pos.y + vertex.y - 8 + TOOLBAR, { steps: 8 });
 await page.mouse.up();
@@ -88,10 +85,7 @@ await settle();
 s = await state();
 const placedSet = Object.values(s.entities).find(
   (e) =>
-    e.kind === 'token' &&
-    e.parent === board.id &&
-    (e.config.tags ?? []).includes('building') &&
-    e.state.count === 1,
+    e.kind === 'token' && e.parent === board.id && (e.config.tags ?? []).includes('building'),
 );
 const shalf = placedSet.config.size / 2;
 const onVertex = board.config.placement.slots.some(

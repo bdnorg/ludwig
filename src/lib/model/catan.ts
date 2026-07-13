@@ -6,9 +6,10 @@
 // shuffle + deal-to-slots. No rules are enforced: players roll, collect,
 // build, and argue like at a real table (SPEC §1).
 
-import type { MacroDef, Pos, TokenEntity, Version } from './types';
+import type { MacroDef, Pos, TokenEntity } from './types';
 import type { Mutation } from './reducers';
 import type { OpCtx } from './ops';
+import { tokenPile } from './ops';
 import { hexGeometry } from './boards';
 import { makeMat, matPresets } from './mats';
 import { newId } from './types';
@@ -42,24 +43,6 @@ const COLORS = [
   { name: 'Orange', color: '#d9822b' },
 ];
 
-function pieceStack(
-  version: Version,
-  parent: string,
-  pos: Pos,
-  cfg: Partial<TokenEntity['config']> & { color: string },
-  count: number,
-): TokenEntity {
-  return {
-    id: newId('tok'),
-    kind: 'token',
-    version,
-    parent,
-    pos,
-    locked: false,
-    config: { shape: 'square', label: '', size: 22, tags: [], ...cfg },
-    state: { count },
-  };
-}
 
 export function catanTable(ctx: OpCtx, origin: Pos): Mutation[] {
   const muts: Mutation[] = [];
@@ -142,10 +125,17 @@ export function catanTable(ctx: OpCtx, origin: Pos): Mutation[] {
       [{ shape: 'bar', size: 36, tags: ['road'], label: '' }, 15, 124, 45], // roads
     ];
     for (const [cfg, count, px, py] of pieces) {
-      muts.push({
-        t: 'put',
-        entity: pieceStack(ctx.next(), mat.id, { x: px, y: py, z: 1, rot: 0 }, { ...cfg, color: c.color }, count),
-      });
+      // reserves are implicit stack mats of single pieces (M17): finite by
+      // construction, one piece comes off per body-drag
+      muts.push(
+        ...tokenPile(
+          ctx,
+          mat.id,
+          { x: px, y: py, z: 1, rot: 0 },
+          { shape: 'square', label: '', size: 22, tags: [], ...cfg, color: c.color },
+          count,
+        ),
+      );
     }
   });
 

@@ -41,7 +41,7 @@ timers, zones, and notes — or import your own card set / saved template
 | Select several things | ⌘/Ctrl-click, or rubber-band drag on the felt |
 | Act on a selection | drag any member to move all · f flips all · x deletes all |
 | Take the top card of a deck | drag it off the pile |
-| Move a whole deck or mat | hover it, grab a side handle |
+| Move a whole deck or mat | ⇧-drag it, or grab its bottom handle |
 | Undo your last action | ⌘Z / Ctrl-Z or the toolbar button |
 | Draw a card to your hand | double-click a deck |
 | Flip a card | double-click it |
@@ -73,11 +73,11 @@ timers, zones, and notes — or import your own card set / saved template
 | Shrink a mat to its contents | right-click → My view: fit contents |
 | Duplicate anything | right-click → Duplicate |
 | Split a chip stack | right-click → Take 1 / Split stack… |
-| Merge chip stacks | drop a stack onto a matching one |
+| Stack anything on anything | drop it on the target’s ◎ bullseye (top-right) — mixed items welcome |
 | Adjust scores | +/− on a counter or scoreboard |
 | Face-down play area | spawn a face-down zone; cards flip as they enter |
 | Resize a zone | drag its corner handle |
-| Take one piece off a token stack | drag it (side handles move the whole stack) |
+| Take one piece off a pile | drag it (⇧-drag or the bottom handle moves the pile) |
 | Board slots (Catan) | pieces snap to matching hex/corner/edge slots |
 | Arrange something just for yourself | right-click → Position: my view only |
 | Deal / gather / reset in one click | quick-action strip (template-defined macros) |

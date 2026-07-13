@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { DiceEntity, TokenEntity } from './types';
+import type { DiceEntity, MatEntity, TokenEntity } from './types';
 import * as ops from './ops';
+import { matItems, sumValue } from './mats';
 import { TestPeer, token } from './testutil';
 
 function dice(peer: TestPeer, sides: number, count = 1): DiceEntity {
@@ -37,46 +38,99 @@ describe('dice', () => {
   });
 });
 
-describe('token stacks', () => {
-  it('merges matching stacks and deletes the source', () => {
-    const peer = new TestPeer('a');
-    const a = token('ta', 'a', 1);
-    a.state.count = 5;
-    const b = token('tb', 'a', 1);
-    b.state.count = 3;
-    peer.apply([{ t: 'put', entity: a }, { t: 'put', entity: b }]);
-    expect(ops.tokensMatch(a, b)).toBe(true);
-    peer.apply(ops.mergeTokens(peer, a, b));
-    expect(peer.state.entities['ta']).toBeUndefined();
-    expect((peer.state.entities['tb'] as TokenEntity).state.count).toBe(8);
-  });
-
-  it('does not match stacks with different labels', () => {
-    const a = token('ta', 'a', 1);
-    const b = token('tb', 'a', 1);
-    b.config.label = '$5';
-    expect(ops.tokensMatch(a, b)).toBe(false);
-  });
-
-  it('splits n pieces into a new stack', () => {
-    const peer = new TestPeer('a');
-    const a = token('ta', 'a', 1);
-    a.state.count = 10;
-    peer.apply([{ t: 'put', entity: a }]);
-    peer.apply(ops.splitToken(peer, a, 4, { x: 50, y: 0, z: 1, rot: 0 }));
-    const stacks = Object.values(peer.state.entities).filter(
-      (e): e is TokenEntity => e.kind === 'token',
+describe('implicit stacks (M17)', () => {
+  const findPile = (peer: TestPeer) =>
+    Object.values(peer.state.entities).find(
+      (e): e is MatEntity => e.kind === 'mat' && !!e.config.implicit,
     );
-    expect(stacks.map((s) => s.state.count).sort()).toEqual([4, 6]);
+
+  it('tokenPile builds an implicit stack mat of single pieces', () => {
+    const peer = new TestPeer('a');
+    peer.apply(
+      ops.tokenPile(peer, null, { x: 10, y: 20, z: 1, rot: 0 }, {
+        shape: 'disc',
+        color: '#c00',
+        label: '$5',
+        size: 34,
+        values: { value: 5 },
+      }, 20),
+    );
+    const pile = findPile(peer)!;
+    expect(pile.config.placement.type).toBe('stack');
+    expect(pile.config.showSum).toBe('value');
+    const items = matItems(peer.state, pile);
+    expect(items).toHaveLength(20);
+    expect(items.every((t) => t.kind === 'token' && t.state.count === 1)).toBe(true);
+    expect(sumValue(peer.state, pile, 'value')).toBe(100);
   });
 
-  it('refuses degenerate splits', () => {
+  it('tokenPile of 1 is a bare token, no mat wrapper', () => {
+    const peer = new TestPeer('a');
+    peer.apply(ops.tokenPile(peer, null, { x: 0, y: 0, z: 1, rot: 0 }, {
+      shape: 'disc', color: '#c00', label: '', size: 28,
+    }, 1));
+    expect(findPile(peer)).toBeUndefined();
+    expect(Object.values(peer.state.entities).filter((e) => e.kind === 'token')).toHaveLength(1);
+  });
+
+  it('stackOnto bundles two DIFFERENT items into an implicit stack', () => {
     const peer = new TestPeer('a');
     const a = token('ta', 'a', 1);
-    a.state.count = 3;
-    peer.apply([{ t: 'put', entity: a }]);
-    expect(ops.splitToken(peer, a, 0, a.pos)).toEqual([]);
-    expect(ops.splitToken(peer, a, 3, a.pos)).toEqual([]);
-    expect(ops.splitToken(peer, a, 9, a.pos)).toEqual([]);
+    const b = token('tb', 'a', 1);
+    b.config.label = '$5'; // heterogeneous on purpose
+    peer.apply([{ t: 'put', entity: a }, { t: 'put', entity: b }]);
+    peer.apply(ops.stackOnto(peer, a, b));
+    const pile = findPile(peer)!;
+    const items = matItems(peer.state, pile);
+    expect(items.map((i) => i.id)).toEqual(['ta', 'tb']); // dropped item on top
+    expect(pile.pos.x).toBe(b.pos.x);
+  });
+
+  it('pulling the second-to-last item dissolves the pile', () => {
+    const peer = new TestPeer('a');
+    const a = token('ta', 'a', 1);
+    const b = token('tb', 'a', 1);
+    peer.apply([{ t: 'put', entity: a }, { t: 'put', entity: b }]);
+    peer.apply(ops.stackOnto(peer, a, b));
+    const pile = findPile(peer)!;
+    peer.apply(
+      ops.moveToTable(peer, peer.state.entities['ta'], { x: 200, y: 0, z: 9, rot: 0 }),
+    );
+    expect(peer.state.entities[pile.id]).toBeUndefined(); // mat gone
+    const tb = peer.state.entities['tb'] as TokenEntity;
+    expect(tb.parent).toBe(null); // survivor stepped out
+    expect(tb.pos.x).toBe(pile.pos.x);
+  });
+
+  it('splitPile takes n items into a new pile; source dissolves below 2', () => {
+    const peer = new TestPeer('a');
+    peer.apply(ops.tokenPile(peer, null, { x: 0, y: 0, z: 1, rot: 0 }, {
+      shape: 'disc', color: '#c00', label: '', size: 28,
+    }, 3));
+    const pile = findPile(peer)!;
+    peer.apply(ops.splitPile(peer, pile, 2, { x: 100, y: 0, z: 5, rot: 0 }));
+    const piles = Object.values(peer.state.entities).filter(
+      (e): e is MatEntity => e.kind === 'mat' && !!e.config.implicit,
+    );
+    // source (1 left) dissolved; the split-off pair is the only pile
+    expect(piles).toHaveLength(1);
+    expect(matItems(peer.state, piles[0])).toHaveLength(2);
+    const loose = Object.values(peer.state.entities).filter(
+      (e) => e.kind === 'token' && e.parent === null,
+    );
+    expect(loose).toHaveLength(1);
+  });
+
+  it('mergeStacks pours one pile into another and removes an implicit source', () => {
+    const peer = new TestPeer('a');
+    const cfg = { shape: 'disc' as const, color: '#c00', label: '', size: 28 };
+    peer.apply(ops.tokenPile(peer, null, { x: 0, y: 0, z: 1, rot: 0 }, cfg, 2));
+    peer.apply(ops.tokenPile(peer, null, { x: 100, y: 0, z: 2, rot: 0 }, cfg, 3));
+    const [a, b] = Object.values(peer.state.entities).filter(
+      (e): e is MatEntity => e.kind === 'mat' && !!e.config.implicit,
+    );
+    peer.apply(ops.mergeStacks(peer, a, b));
+    expect(peer.state.entities[a.id]).toBeUndefined();
+    expect(matItems(peer.state, peer.state.entities[b.id] as MatEntity)).toHaveLength(5);
   });
 });

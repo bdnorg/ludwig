@@ -7,6 +7,7 @@
     mat,
     privileged,
     sizeOverride = null,
+    hovered = false,
     onMove,
     children,
   }: {
@@ -15,7 +16,10 @@
     /** fit-contents view: computed extent replaces the configured size and
      *  disables the resize handle (v4 §2) */
     sizeOverride?: { w: number; h: number } | null;
-    /** side-handle drag: move the mat itself (PROPOSAL v4 §2) */
+    /** handles show only when the MAT itself is the hovered entity, not a
+     *  pile inside it — EntityView tracks this, CSS :hover can't (M17) */
+    hovered?: boolean;
+    /** handle drag: move the mat itself (PROPOSAL v4 §2) */
     onMove: (e: PointerEvent) => void;
     children: Snippet;
   } = $props();
@@ -58,6 +62,7 @@
 <div
   class="region"
   class:priv={privileged}
+  class:hovered
   style:width="{w}px"
   style:height="{h}px"
   style:background={mat.config.color ?? undefined}
@@ -100,16 +105,15 @@
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div class="handle" onpointerdown={beginResize} ondblclick={(e) => e.stopPropagation()}></div>
     {/if}
-    {#each ['n', 'e', 's', 'w'] as side (side)}
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div
-        class="mhandle h-{side}"
-        data-handle="move"
-        title="move the mat"
-        onpointerdown={onMove}
-        ondblclick={(e) => e.stopPropagation()}
-      ></div>
-    {/each}
+    <!-- ONE move handle, bottom-center (M17) -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="mhandle h-s"
+      data-handle="move"
+      title="move the mat (or ⇧-drag it)"
+      onpointerdown={onMove}
+      ondblclick={(e) => e.stopPropagation()}
+    ></div>
   {/if}
 </div>
 
@@ -176,7 +180,8 @@
   .eye {
     text-transform: none;
   }
-  /* handles are invisible until the mat is hovered (PROPOSAL v4 §2) */
+  /* handles are invisible until the MAT ITSELF is hovered — `hovered` comes
+     from EntityView so piles inside don't leak it (M17) */
   .handle {
     position: absolute;
     right: -6px;
@@ -190,7 +195,7 @@
     transition: opacity 0.1s;
     z-index: 2;
   }
-  .region:hover .handle {
+  .region.hovered > .handle {
     opacity: 0.85;
   }
   .mhandle {
@@ -205,27 +210,12 @@
     transition: opacity 0.1s;
     z-index: 2;
   }
-  .region:hover .mhandle {
+  .region.hovered > .mhandle {
     opacity: 1;
-  }
-  .h-n {
-    top: -6px;
-    left: 50%;
-    transform: translateX(-50%);
   }
   .h-s {
     bottom: -6px;
     left: 50%;
     transform: translateX(-50%);
-  }
-  .h-e {
-    right: -6px;
-    top: 50%;
-    transform: translateY(-50%);
-  }
-  .h-w {
-    left: -6px;
-    top: 50%;
-    transform: translateY(-50%);
   }
 </style>

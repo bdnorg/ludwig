@@ -176,6 +176,10 @@ export type MatEntity = Base<
     /** 'infinite' (v4 §6): pulls CLONE the top item, returns DESTROY the
      *  returned item, and the count badge renders ∞ */
     supply?: 'normal' | 'infinite';
+    /** an implicit stack (M17): created by dropping one item onto another's
+     *  bullseye. Renders chrome-free (no label, no letter, sized to its top
+     *  item) and dissolves back into a lone item when fewer than 2 remain. */
+    implicit?: boolean;
   },
   {
     /** stack/fan order, index 0 = top; membership authority is child.parent */
@@ -197,7 +201,10 @@ export type TokenEntity = Base<
     /** named numeric values (chips: { value: 5 }); stacks show sums (v4 §4) */
     values?: Record<string, number>;
   },
-  { count: number } // a stack of identical pieces; 1 = a single token
+  /** count > 1 is LEGACY (pre-M17 identical-piece stacks): persist.migrate()
+   *  dissolves such tokens into implicit stack mats of single pieces, so any
+   *  mix of items can share a stack. New code always writes count 1. */
+  { count: number }
 >;
 
 export type NoteEntity = Base<

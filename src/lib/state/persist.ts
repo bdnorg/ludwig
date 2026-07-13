@@ -1,13 +1,16 @@
 import type { TableState } from '../model/reducers';
 import { emptyTable } from '../model/reducers';
+import type { MatEntity } from '../model/types';
 
 const key = (room: string) => `ludwig:table:${room}`;
 
 /** Pre-M11 saves had hands as hidden `docked` mats pinned to chrome; they
  *  are ordinary on-table private mats now (SPEC §15). Pre-M14 dice packed
- *  `config.count` dice into one entity; one entity is one die now (v4 §4) —
- *  splits use deterministic ids so every peer migrates identically. */
-function migrate(s: TableState): TableState {
+ *  `config.count` dice into one entity; one entity is one die now (v4 §4).
+ *  Pre-M17 tokens packed identical pieces into `state.count`; piles are
+ *  implicit stack MATS of single pieces now, so any mix can share a stack —
+ *  all splits use deterministic ids so every peer migrates identically. */
+export function migrate(s: TableState): TableState {
   for (const e of Object.values(s.entities)) {
     if (e.kind === 'mat') {
       const cfg = e.config as { docked?: boolean } & typeof e.config;
@@ -35,6 +38,46 @@ function migrate(s: TableState): TableState {
         s.entities[id] = twin;
       }
       e.state.values = [vals[0] ?? 1];
+    } else if (e.kind === 'token') {
+      const count = e.state.count ?? 1;
+      if (count <= 1) continue;
+      const matId = `${e.id}_stk`;
+      if (s.entities[matId]) continue;
+      const mat: MatEntity = {
+        id: matId,
+        kind: 'mat',
+        version: { ...e.version },
+        parent: e.parent,
+        pos: { ...e.pos },
+        locked: false,
+        config: {
+          label: '',
+          letter: null,
+          ownerId: null,
+          placement: { type: 'stack' },
+          faceDefault: 'keep',
+          visibility: { faces: 'public', count: 'public', existence: 'public' },
+          image: null,
+          size: null,
+          implicit: true,
+          showSum: e.config.values ? 'value' : undefined,
+        },
+        state: { order: [e.id] },
+      };
+      for (let i = 1; i < count; i++) {
+        const id = `${e.id}_p${i}`;
+        const twin = JSON.parse(JSON.stringify(e)) as typeof e;
+        twin.id = id;
+        twin.parent = matId;
+        twin.pos = { x: 0, y: 0, z: i, rot: 0 };
+        twin.state.count = 1;
+        s.entities[id] = twin;
+        mat.state.order.push(id);
+      }
+      e.parent = matId;
+      e.pos = { x: 0, y: 0, z: 0, rot: 0 };
+      e.state.count = 1;
+      s.entities[matId] = mat;
     }
   }
   return s;

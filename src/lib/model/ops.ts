@@ -17,7 +17,7 @@ import type {
   Version,
 } from './types';
 import type { Mutation, TableState } from './reducers';
-import { getMat, matItems } from './mats';
+import { getMat, makeMat, matItems } from './mats';
 import { newId } from './types';
 import { randInt, shuffled } from './rng';
 
@@ -34,6 +34,31 @@ function put(ctx: OpCtx, e: Entity): Mutation {
   return { t: 'put', entity: e };
 }
 
+/** Implicit stacks (M17) exist only while they hold 2+ items: once removals
+ *  leave 0 or 1, the survivor steps out to the stack's own spot and the mat
+ *  vanishes — a lone chip is a chip again, not a pile of one. */
+function dissolveImplicit(ctx: OpCtx, holder: MatEntity, removedIds: string[]): Mutation[] {
+  if (!holder.config.implicit) return [];
+  const rest = matItems(ctx.state, holder).filter((e) => !removedIds.includes(e.id));
+  if (rest.length > 1) return [];
+  const muts: Mutation[] = [];
+  const last = rest[0];
+  if (last) {
+    const it = ctx.clone(last);
+    it.parent = holder.parent;
+    it.pos = { ...holder.pos, rot: it.pos.rot };
+    muts.push(put(ctx, it));
+    const gp = getMat(ctx.state, holder.parent);
+    if (gp) {
+      const g = ctx.clone(gp);
+      g.state.order = [it.id, ...g.state.order.filter((id) => id !== it.id)];
+      muts.push(put(ctx, g));
+    }
+  }
+  muts.push({ t: 'del', id: holder.id, version: ctx.next() });
+  return muts;
+}
+
 /** Remove an item id from whatever mat order-list mentions it. */
 function pluckFromMat(ctx: OpCtx, item: Entity): Mutation[] {
   const holder = getMat(ctx.state, item.parent);
@@ -41,7 +66,7 @@ function pluckFromMat(ctx: OpCtx, item: Entity): Mutation[] {
   if (!holder.state.order.includes(item.id)) return [];
   const m = ctx.clone(holder);
   m.state.order = m.state.order.filter((id) => id !== item.id);
-  return [put(ctx, m)];
+  return [put(ctx, m), ...dissolveImplicit(ctx, holder, [item.id])];
 }
 
 /** Half-extent of an item, for centering it on a slot. Bar tokens (roads)
@@ -206,6 +231,7 @@ export function drawTo(ctx: OpCtx, from: MatEntity, to: MatEntity, n = 1): Mutat
   const t = ctx.clone(to);
   const taken = new Set(items.map((e) => e.id));
   f.state.order = f.state.order.filter((id) => !taken.has(id));
+  const dissolve = dissolveImplicit(ctx, from, [...taken]);
   const rest = t.state.order.filter((id) => !taken.has(id));
   t.state.order =
     t.config.placement.type === 'fan'
@@ -219,7 +245,7 @@ export function drawTo(ctx: OpCtx, from: MatEntity, to: MatEntity, n = 1): Mutat
       it.state.faceUp = t.config.faceDefault === 'up';
     muts.push(put(ctx, it));
   }
-  return muts;
+  return [...muts, ...dissolve];
 }
 
 /** Deal n cards to each mat, round-robin from the top, like a real deal. */
@@ -348,7 +374,7 @@ export function moveItemsInto(ctx: OpCtx, items: Entity[], target: MatEntity): M
     if (!src) continue;
     const m = ctx.clone(src);
     m.state.order = m.state.order.filter((id) => !ids.has(id));
-    muts.push(put(ctx, m));
+    muts.push(put(ctx, m), ...dissolveImplicit(ctx, src, [...ids]));
   }
   const movedIds = new Set(moved.map((e) => e.id));
   const t = ctx.clone(target);
@@ -376,77 +402,145 @@ export function rollDice(ctx: OpCtx, dice: DiceEntity, rolledBy: string): Mutati
   return [put(ctx, d)];
 }
 
-/** Merge a dragged stack into a matching one (same label/color/size). */
-export function mergeTokens(ctx: OpCtx, src: TokenEntity, dst: TokenEntity): Mutation[] {
-  const d = ctx.clone(dst);
-  d.state.count = (d.state.count || 1) + (src.state.count || 1);
-  return [{ t: 'del', id: src.id, version: ctx.next() }, put(ctx, d)];
-}
-
-export function tokensMatch(a: TokenEntity, b: TokenEntity): boolean {
-  return (
-    a.config.label === b.config.label &&
-    a.config.color === b.config.color &&
-    a.config.shape === b.config.shape &&
-    a.config.size === b.config.size
-  );
-}
-
-/** Take one piece off a stack and place it — on the table (mat = null) or
- *  into a mat (snapped, e.g. a road onto an edge slot). The reserve-stack
- *  gesture: finite supplies stay finite by construction. */
-export function takeOneTo(
+/** Build an implicit stack: `n` copies of a token piled at `pos` (a chip
+ *  stack, a road reserve). n = 1 is just a token — no mat wrapper (M17). */
+export function tokenPile(
   ctx: OpCtx,
-  src: TokenEntity,
-  mat: MatEntity | null,
+  parent: string | null,
   pos: Pos,
+  cfg: TokenEntity['config'],
+  n: number,
 ): Mutation[] {
-  const have = src.state.count || 1;
-  const one = ctx.clone(src);
-  one.id = newId('tok');
-  one.state.count = 1;
-  one.parent = mat ? mat.id : null;
-  one.pos = mat ? snapPos(mat, pos, one) : pos;
+  const tok = (id: string, p: string | null, at: Pos): TokenEntity => ({
+    id,
+    kind: 'token',
+    version: ctx.next(),
+    parent: p,
+    pos: at,
+    locked: false,
+    config: cfg,
+    state: { count: 1 },
+  });
+  if (n <= 1) return [{ t: 'put', entity: tok(newId('tok'), parent, pos) }];
+  const mat = makeMat(ctx.next(), pos, {
+    label: '',
+    implicit: true,
+    placement: { type: 'stack' },
+    faceDefault: 'keep',
+    showSum: cfg.values ? 'value' : undefined,
+  });
+  mat.parent = parent;
   const muts: Mutation[] = [];
-  if (have <= 1) {
-    // taking the last piece: the stack is gone
-    muts.push({ t: 'del', id: src.id, version: ctx.next() });
-  } else {
-    const rest = ctx.clone(src);
-    rest.state.count = have - 1;
-    muts.push(put(ctx, rest));
+  const ids: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = tok(newId('tok'), mat.id, { x: 0, y: 0, z: i, rot: 0 });
+    ids.push(t.id);
+    muts.push({ t: 'put', entity: t });
   }
-  if (mat) {
-    const m = ctx.clone(mat);
-    m.state.order = [one.id, ...m.state.order];
-    muts.push(put(ctx, m));
+  mat.state.order = ids;
+  return [{ t: 'put', entity: mat }, ...muts];
+}
+
+/** Bullseye drop of one item onto another (M17): bundle both into a fresh
+ *  implicit stack mat at the target's spot. ANY mix may share a stack —
+ *  mixed colors, denominations, cards on chips. Faces are kept as they lie. */
+export function stackOnto(ctx: OpCtx, item: Entity, target: Entity): Mutation[] {
+  if (item.id === target.id || item.kind === 'mat' || target.kind === 'mat') return [];
+  const muts: Mutation[] = [];
+  const src = getMat(ctx.state, item.parent);
+  const it = ctx.clone(item);
+  if (src?.config.supply === 'infinite') it.id = newId(clonePrefix(item));
+  else if (item.parent !== target.parent) muts.push(...pluckFromMat(ctx, item));
+  const mat = makeMat(ctx.next(), { ...target.pos }, {
+    label: '',
+    implicit: true,
+    placement: { type: 'stack' },
+    faceDefault: 'keep',
+    showSum: 'value',
+  });
+  mat.parent = target.parent;
+  mat.state.order = [it.id, target.id];
+  const holder = getMat(ctx.state, target.parent);
+  if (holder) {
+    const g = ctx.clone(holder);
+    g.state.order = [mat.id, ...g.state.order.filter((id) => id !== target.id && id !== it.id)];
+    muts.push(put(ctx, g));
   }
-  muts.push(put(ctx, one));
+  const tgt = ctx.clone(target);
+  tgt.parent = mat.id;
+  tgt.pos = { x: 0, y: 0, z: 0, rot: tgt.pos.rot };
+  it.parent = mat.id;
+  it.pos = { x: 0, y: 0, z: 1, rot: it.pos.rot };
+  return [...muts, put(ctx, mat), put(ctx, tgt), put(ctx, it)];
+}
+
+/** Split the top n items off a pile into a new implicit stack at pos
+ *  (n = 1 just sets the lone item down). The source dissolves if it was
+ *  implicit and drops below 2. */
+export function splitPile(ctx: OpCtx, src: MatEntity, n: number, pos: Pos): Mutation[] {
+  const items = matItems(ctx.state, src);
+  const taken = items.slice(0, Math.max(0, Math.min(n, items.length)));
+  if (taken.length === 0) return [];
+  const ids = taken.map((i) => i.id);
+  const s = ctx.clone(src);
+  s.state.order = s.state.order.filter((id) => !ids.includes(id));
+  const muts: Mutation[] = [put(ctx, s), ...dissolveImplicit(ctx, src, ids)];
+  if (taken.length === 1) {
+    const it = ctx.clone(taken[0]);
+    it.parent = src.parent;
+    it.pos = { ...pos, rot: it.pos.rot };
+    return [...muts, put(ctx, it)];
+  }
+  const mat = makeMat(ctx.next(), pos, {
+    label: '',
+    implicit: true,
+    placement: { type: 'stack' },
+    faceDefault: 'keep',
+    showSum: src.config.showSum,
+  });
+  mat.parent = src.parent;
+  mat.state.order = ids;
+  muts.push(put(ctx, mat));
+  for (const [i, item] of taken.entries()) {
+    const it = ctx.clone(item);
+    it.parent = mat.id;
+    it.pos = { x: 0, y: 0, z: taken.length - i, rot: it.pos.rot };
+    muts.push(put(ctx, it));
+  }
   return muts;
 }
 
-/** Move one piece from a stack onto a matching stack. */
-export function transferToken(ctx: OpCtx, src: TokenEntity, dst: TokenEntity): Mutation[] {
-  const have = src.state.count || 1;
-  const d = ctx.clone(dst);
-  d.state.count = (d.state.count || 1) + 1;
-  if (have <= 1) return [{ t: 'del', id: src.id, version: ctx.next() }, put(ctx, d)];
-  const s = ctx.clone(src);
-  s.state.count = have - 1;
-  return [put(ctx, s), put(ctx, d)];
-}
-
-/** Split n pieces off a stack into a new stack at pos. */
-export function splitToken(ctx: OpCtx, src: TokenEntity, n: number, pos: Pos): Mutation[] {
-  const have = src.state.count || 1;
-  if (n <= 0 || n >= have) return [];
-  const rest = ctx.clone(src);
-  rest.state.count = have - n;
-  const taken = ctx.clone(src);
-  taken.id = newId('tok');
-  taken.pos = pos;
-  taken.state.count = n;
-  return [put(ctx, rest), put(ctx, taken)];
+/** Bullseye drop of a whole stack onto another stack/fan: pour every item
+ *  in on top. An implicit source vanishes; a real mat (deck) stays, empty.
+ *  Pouring into an infinite supply destroys the items (v4 §6). */
+export function mergeStacks(ctx: OpCtx, src: MatEntity, dst: MatEntity): Mutation[] {
+  if (src.id === dst.id) return [];
+  const items = matItems(ctx.state, src);
+  if (items.length === 0) return [];
+  const muts: Mutation[] = [];
+  if (dst.config.supply === 'infinite') {
+    for (const i of items) muts.push({ t: 'del', id: i.id, version: ctx.next() });
+  } else {
+    const ids = items.map((i) => i.id);
+    const d = ctx.clone(dst);
+    d.state.order = [...ids, ...d.state.order.filter((id) => !ids.includes(id))];
+    muts.push(put(ctx, d));
+    for (const i of items) {
+      const it = ctx.clone(i);
+      it.parent = dst.id;
+      if (it.kind === 'card' && dst.config.faceDefault !== 'keep')
+        it.state.faceUp = dst.config.faceDefault === 'up';
+      muts.push(put(ctx, it));
+    }
+  }
+  if (src.config.implicit) {
+    muts.push({ t: 'del', id: src.id, version: ctx.next() });
+  } else {
+    const s = ctx.clone(src);
+    s.state.order = [];
+    muts.push(put(ctx, s));
+  }
+  return muts;
 }
 
 /** Delete an entity; deleting a mat deletes everything inside, recursively. */

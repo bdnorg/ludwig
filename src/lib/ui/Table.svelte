@@ -9,7 +9,6 @@
     getMat,
     isOwnerOf,
     isPrivate,
-    isStackedKind,
     makeMat,
     matItems,
     matLetters,
@@ -51,6 +50,7 @@
   import DeckSearch from './DeckSearch.svelte';
   import Cursors from './Cursors.svelte';
   import CardFaceView from './CardFaceView.svelte';
+  import TokenView from './TokenView.svelte';
   import Palette from './Palette.svelte';
   import LogPanel from './LogPanel.svelte';
 
@@ -294,8 +294,15 @@
       table.toggleSelect(ent.id);
       return;
     }
+    // ⇧-drag starting on a MAT moves the mat itself, like its handle would
+    // (M17); ⇧-drag on the felt still pans
+    if (e.shiftKey && ent.kind === 'mat' && !ent.locked) {
+      e.stopPropagation();
+      beginEntityDrag(e, ent);
+      return;
+    }
     // region mats and locked scenery let the gesture bubble: a drag starting
-    // on them rubber-bands (mats move only by their handles)
+    // on them rubber-bands (mats move only by their handle or ⇧-drag)
     if (isRegionMatEnt(ent) || ent.locked) return;
     e.stopPropagation();
     // dragging any member of a multi-selection moves the whole selection
@@ -304,18 +311,15 @@
       return;
     }
     table.select([ent.id]); // plain click replaces the selection
-    // the body of a pile always takes the top STACKED item; handles move it
+    // the body of a pile always takes the top STACKED item; the handle
+    // (or ⇧-drag) moves the pile
     if (ent.kind === 'mat' && ent.config.placement.type === 'stack') {
       const top = topStacked(table.state, ent);
       if (top) startGhostDrag(e, top.id, ent.id);
       return;
     }
-    if (ent.kind === 'token' && (ent.state.count ?? 1) > 1) {
-      startGhostDrag(e, ent.id, ent.parent, 'one');
-      return;
-    }
     // fan/collapsed mats have no body-drag either (their cards ghost-drag
-    // via the fan slots; the mat itself moves by handles)
+    // via the fan slots; the mat itself moves by its handle)
     if (ent.kind === 'mat') return;
     beginEntityDrag(e, ent);
   }
@@ -332,6 +336,7 @@
     if (!drag) return;
     const p = screenToTable(e.clientX, e.clientY);
     drag.moved = true;
+    if (drag.extras.length === 0) updateBullseye(e.clientX, e.clientY, drag.id);
     for (const part of [drag, ...drag.extras]) {
       const x = p.x - part.fx - part.dx;
       const y = p.y - part.fy - part.dy;
@@ -345,7 +350,9 @@
     window.removeEventListener('pointermove', onDragMove);
     window.removeEventListener('pointerup', onDragUp);
     const d = drag;
+    const be = bullseye;
     drag = null;
+    bullseye = null;
     if (!d) return;
     const ent = table.get(d.id);
     if (!ent) return;
@@ -378,12 +385,24 @@
     const isRegionMat =
       ent.kind === 'mat' && ['free', 'grid', 'slots'].includes(ent.config.placement.type);
 
-    // token-stack merge
-    if (ent.kind === 'token') {
-      const dst = matchingTokenAt(e.clientX, e.clientY, ent);
-      if (dst?.kind === 'token') {
-        table.commit(ops.mergeTokens(table, ent, dst));
-        return;
+    // bullseye drop (M17): the ONLY way a drag stacks/merges — anywhere
+    // else just overlaps positions
+    if (be?.active) {
+      const t = table.get(be.id);
+      if (t) {
+        table.setPosOverride(ent.id, null);
+        if (t.kind === 'mat' && ent.kind === 'mat') {
+          table.commit(ops.mergeStacks(table, ent, t));
+          return;
+        }
+        if (t.kind === 'mat' && ent.kind !== 'mat') {
+          table.commit(ops.moveToMat(table, ent, t, { where: 'top' }));
+          return;
+        }
+        if (t.kind !== 'mat' && ent.kind !== 'mat') {
+          table.commit(ops.stackOnto(table, ent, t));
+          return;
+        }
       }
     }
 
@@ -395,13 +414,6 @@
     if (target?.type === 'mat' && !isDescendant(target.id, ent.id)) {
       const mat = getMat(table.state, target.id);
       if (mat) {
-        const stackish = ['stack', 'fan'].includes(mat.config.placement.type);
-        // only stackKinds pile onto a stack; other kinds land loose on it
-        if (stackish && isStackedKind(mat, ent) && (ent.kind === 'card' || ent.kind === 'token')) {
-          table.setPosOverride(ent.id, null);
-          table.commit(ops.moveToMat(table, ent, mat, { where: 'top' }));
-          return;
-        }
         if (!isRegionMat) {
           const o = table.effectiveOrigin(mat.id);
           const pos: Pos = {
@@ -505,7 +517,7 @@
       ]);
   }
 
-  type DropTarget = { type: 'mat' | 'token'; id: string } | { type: 'tray' };
+  type DropTarget = { type: 'mat' | 'item'; id: string } | { type: 'tray' };
 
   /** All drop candidates under the point, topmost first — callers pick the
    *  first that applies (e.g. a road ignores the hex tile it lands on and
@@ -522,33 +534,73 @@
         continue;
       }
       const [t, id] = dd.split(':');
-      if ((t === 'mat' || t === 'token') && id !== excludeId && !isDescendant(id, excludeId))
-        out.push({ type: t as 'mat' | 'token', id });
+      if ((t === 'mat' || t === 'item') && id !== excludeId && !isDescendant(id, excludeId))
+        out.push({ type: t as 'mat' | 'item', id });
     }
     return out;
   }
 
-  /** First target that isn't a token (tokens only matter for merging). */
-  function dropTargetAt(cx: number, cy: number, excludeId: string): DropTarget | null {
-    return dropTargetsAt(cx, cy, excludeId).find((t) => t.type !== 'token') ?? null;
-  }
+  const isStackishMat = (e: Entity | undefined): e is MatEntity =>
+    e?.kind === 'mat' && ['stack', 'fan'].includes(e.config.placement.type);
 
-  /** First token under the point that merges with `tok`. */
-  function matchingTokenAt(cx: number, cy: number, tok: Entity & { kind: 'token' }): Entity | null {
-    for (const t of dropTargetsAt(cx, cy, tok.id)) {
-      if (t.type !== 'token') continue;
-      const dst = table.get(t.id);
-      if (dst?.kind === 'token' && ops.tokensMatch(tok, dst)) return dst;
+  /** Positional drop target: single items and stack/fan mats don't count —
+   *  stacking happens ONLY via the bullseye (M17); anything dropped beside
+   *  it just overlaps. Falls through to region mats and the table. */
+  function dropTargetAt(cx: number, cy: number, excludeId: string): DropTarget | null {
+    for (const t of dropTargetsAt(cx, cy, excludeId)) {
+      if (t.type === 'item') continue;
+      if (t.type === 'mat' && isStackishMat(table.get(t.id))) continue;
+      return t;
     }
     return null;
   }
 
-  // ---- ghost drag: a card out of a fan/tray/stack top, or ONE token off a
-  // stack (mode 'one') ----
+  // ---- bullseye (M17): while dragging over a stackable target, a ring
+  // appears at its top-right (the count-badge spot); dropping ON the ring
+  // stacks/merges, dropping anywhere else only overlaps ----
+  let bullseye = $state<{ id: string; x: number; y: number; active: boolean } | null>(null);
+
+  /** Topmost stackable thing under the pointer: a single item or a
+   *  stack/fan mat. */
+  function bullseyeTargetAt(cx: number, cy: number, dragId: string): Entity | null {
+    for (const t of dropTargetsAt(cx, cy, dragId)) {
+      if (t.type === 'tray') return null;
+      const e = table.get(t.id);
+      if (!e || e.locked) continue;
+      if (t.type === 'item') return e;
+      if (isStackishMat(e)) return e;
+    }
+    return null;
+  }
+
+  function updateBullseye(cx: number, cy: number, dragId: string) {
+    const dragged = table.get(dragId);
+    const stackable =
+      dragged && (dragged.kind === 'token' || dragged.kind === 'card' || isStackishMat(dragged));
+    const t = stackable ? bullseyeTargetAt(cx, cy, dragId) : null;
+    // a whole stack pours only into another stack/fan, not onto a lone item
+    if (!t || (dragged!.kind === 'mat' && t.kind !== 'mat')) {
+      // the ring can sit just OUTSIDE its target (clipped hexes, discs):
+      // keep it live while the pointer is on the ring itself
+      if (stackable && bullseye && Math.hypot(cx - bullseye.x, cy - bullseye.y) < 18) {
+        bullseye = { ...bullseye, active: true };
+        return;
+      }
+      bullseye = null;
+      return;
+    }
+    const r = viewportEl.querySelector(`[data-entity-id="${t.id}"]`)?.getBoundingClientRect();
+    if (!r) {
+      bullseye = null;
+      return;
+    }
+    bullseye = { id: t.id, x: r.right, y: r.top, active: Math.hypot(cx - r.right, cy - r.top) < 16 };
+  }
+
+  // ---- ghost drag: a card out of a fan/tray, or the top item off a stack ----
   let ghost = $state<{
     id: string;
     srcMat: string | null;
-    mode: 'item' | 'one';
     sx: number;
     sy: number;
     x: number;
@@ -556,19 +608,13 @@
     moved: boolean;
   } | null>(null);
 
-  function startGhostDrag(
-    e: PointerEvent,
-    itemId: string,
-    srcMatId: string | null,
-    mode: 'item' | 'one' = 'item',
-  ) {
+  function startGhostDrag(e: PointerEvent, itemId: string, srcMatId: string | null) {
     if (e.button !== 0) return;
     e.stopPropagation();
     lastClickedId = itemId;
     ghost = {
       id: itemId,
       srcMat: srcMatId,
-      mode,
       sx: e.clientX,
       sy: e.clientY,
       x: e.clientX,
@@ -583,51 +629,30 @@
     ghost.x = e.clientX;
     ghost.y = e.clientY;
     if (Math.hypot(e.clientX - ghost.sx, e.clientY - ghost.sy) > 5) ghost.moved = true;
+    if (ghost.moved) updateBullseye(e.clientX, e.clientY, ghost.id);
   }
   function onGhostUp(e: PointerEvent) {
     window.removeEventListener('pointermove', onGhostMove);
     window.removeEventListener('pointerup', onGhostUp);
     const g = ghost;
+    const be = bullseye;
     ghost = null;
+    bullseye = null;
     if (!g || !g.moved) return;
     const item = table.get(g.id);
     if (!item) return;
 
-    // mode 'one': take a single piece off a token stack
-    if (g.mode === 'one' && item.kind === 'token') {
-      const dst = matchingTokenAt(e.clientX, e.clientY, item);
-      if (dst?.kind === 'token') {
-        table.commit(ops.transferToken(table, item, dst));
+    // bullseye drop (M17): the only way to stack/merge
+    if (be?.active) {
+      const t = table.get(be.id);
+      if (t?.kind === 'mat') {
+        table.commit(ops.moveToMat(table, item, t, { where: 'top' }));
         return;
       }
-      const target = dropTargetAt(e.clientX, e.clientY, g.id);
-      const p = screenToTable(e.clientX, e.clientY);
-      const half = item.config.size / 2;
-      if (target?.type === 'mat') {
-        const mat = getMat(table.state, target.id);
-        if (mat && !['stack', 'fan'].includes(mat.config.placement.type)) {
-          const o = table.effectiveOrigin(mat.id);
-          table.commit(
-            ops.takeOneTo(table, item, mat, {
-              x: p.x - o.x - half,
-              y: p.y - o.y - half,
-              z: table.maxZ() + 1,
-              rot: 0,
-            }),
-          );
-          return;
-        }
-        return; // token into a card stack: not a thing
+      if (t) {
+        table.commit(ops.stackOnto(table, item, t));
+        return;
       }
-      table.commit(
-        ops.takeOneTo(table, item, null, {
-          x: p.x - half,
-          y: p.y - half,
-          z: table.maxZ() + 1,
-          rot: 0,
-        }),
-      );
-      return;
     }
 
     const src = getMat(table.state, g.srcMat);
@@ -637,25 +662,27 @@
       dropInTray(item, e.clientX, e.clientY);
       return;
     }
+    // released while still over the source pile: a sloppy click, not a pull
+    if (
+      g.srcMat &&
+      dropTargetsAt(e.clientX, e.clientY, g.id).some(
+        (t) => t.type === 'mat' && t.id === g.srcMat && isStackishMat(table.get(t.id)),
+      )
+    )
+      return;
     if (target?.type === 'mat') {
       const mat = getMat(table.state, target.id);
       if (mat && !isDescendant(mat.id, g.id)) {
-        if (mat.id === g.srcMat && ['stack'].includes(mat.config.placement.type)) return;
-        const stackish = ['stack', 'fan'].includes(mat.config.placement.type);
-        if (stackish && isStackedKind(mat, item)) {
-          table.commit(ops.moveToMat(table, item, mat, { where: 'top' }));
-        } else {
-          const o = table.effectiveOrigin(mat.id);
-          const p = screenToTable(e.clientX, e.clientY);
-          const w = item.kind === 'card' ? item.config.w : 30;
-          const h = item.kind === 'card' ? item.config.h : 30;
-          table.commit(
-            ops.moveToMat(table, item, mat, {
-              pos: { x: p.x - o.x - w / 2, y: p.y - o.y - h / 2, z: table.maxZ() + 1, rot: 0 },
-              snap: !e.altKey,
-            }),
-          );
-        }
+        const o = table.effectiveOrigin(mat.id);
+        const p = screenToTable(e.clientX, e.clientY);
+        const w = item.kind === 'card' ? item.config.w : 30;
+        const h = item.kind === 'card' ? item.config.h : 30;
+        table.commit(
+          ops.moveToMat(table, item, mat, {
+            pos: { x: p.x - o.x - w / 2, y: p.y - o.y - h / 2, z: table.maxZ() + 1, rot: 0 },
+            snap: !e.altKey,
+          }),
+        );
         return;
       }
     }
@@ -848,29 +875,24 @@
       },
     });
 
-    if (ent.kind === 'token') {
-      const count = ent.state.count ?? 1;
-      if (count > 1) {
-        const splitOff = (n: number) =>
+    // piles (implicit stacks): pull several at once via the context menu
+    if (ent.kind === 'mat' && ent.config.implicit) {
+      const n = matItems(table.state, ent).length;
+      items.push({
+        label: 'Split pile…',
+        run: () => {
+          const k = Number(prompt(`Take how many? (pile of ${n})`, '1'));
+          if (!Number.isInteger(k) || k <= 0) return;
           table.commit(
-            ops.splitToken(table, ent, n, {
-              x: ent.pos.x + ent.config.size + 12,
+            ops.splitPile(table, ent, k, {
+              x: ent.pos.x + 60,
               y: ent.pos.y,
               z: table.maxZ() + 1,
               rot: 0,
             }),
           );
-        items.push(
-          { label: 'Take 1 off the stack', run: () => splitOff(1) },
-          {
-            label: 'Split stack…',
-            run: () => {
-              const n = Number(prompt(`Take how many? (stack of ${count})`, '1'));
-              if (Number.isInteger(n)) splitOff(n);
-            },
-          },
-        );
-      }
+        },
+      });
     }
     // one dialog for what an item IS (label, value, shape, sides…) — v4 §4
     if (['token', 'dice', 'card', 'counter', 'scoreboard'].includes(ent.kind)) {
@@ -943,9 +965,7 @@
     const t = hoverTarget;
     if (!t) return null;
     if (t.kind === 'mat' && t.config.placement.type === 'stack' && matItems(table.state, t).length > 1)
-      return 'drag = take one · side handles move the pile';
-    if (t.kind === 'token' && (t.state.count ?? 1) > 1)
-      return 'drag = take one · side handles move the stack';
+      return 'drag = take one · ⇧-drag or bottom handle moves the pile';
     return null;
   });
 
@@ -990,18 +1010,16 @@
       { label: '🂠 Discard pile', run: () => spawnMat(matPresets.pile()) },
       ...CHIPS.map((chip) => ({
         label: `⛁ Chips ${chip.label} (×20)`,
+        // a pile is an implicit stack mat of 20 single chips (M17)
         run: () =>
-          spawn(
-            'token',
-            {
+          table.commit(
+            ops.tokenPile(table, null, centerPos(), {
               shape: 'disc',
               color: chip.color,
               label: chip.label,
               size: 34,
               values: { value: chip.value },
-            },
-            { count: 20 },
-            'tok',
+            }, 20),
           ),
       })),
       {
@@ -1374,17 +1392,22 @@
     </div>
   {/if}
 
+  {#if bullseye}
+    <div
+      class="bullseye"
+      class:active={bullseye.active}
+      style:left="{bullseye.x}px"
+      style:top="{bullseye.y}px"
+    ></div>
+  {/if}
+
   {#if ghostItem}
     <div class="ghost" style:left="{ghost!.x}px" style:top="{ghost!.y}px">
       {#if ghostItem.kind === 'card'}
         <CardFaceView face={ghostFace} w={ghostItem.config.w} h={ghostItem.config.h} />
       {:else if ghostItem.kind === 'token'}
-        <div
-          class="ghost-token"
-          style:width="{ghostItem.config.size}px"
-          style:height="{ghostItem.config.size}px"
-          style:background={ghostItem.config.color}
-        ></div>
+        <!-- the ghost IS the token: shape, color, label, size (M17) -->
+        <TokenView config={ghostItem.config} />
       {/if}
     </div>
   {/if}
@@ -1455,9 +1478,23 @@
     transform: translate(-50%, -50%) rotate(3deg);
     opacity: 0.9;
   }
-  .ghost-token {
+  .bullseye {
+    position: fixed;
+    z-index: 400001;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+    border: 2px solid var(--accent);
+    background: radial-gradient(circle 4px, var(--accent) 90%, transparent);
+    opacity: 0.7;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: transform 0.08s;
+  }
+  .bullseye.active {
+    transform: translate(-50%, -50%) scale(1.4);
+    opacity: 1;
+    box-shadow: 0 0 10px var(--accent);
   }
   /* sits flush against the entity's top edge (no gap to cross) */
   .hoverbar {

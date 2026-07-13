@@ -23,6 +23,7 @@
   import ScoreboardView from './ScoreboardView.svelte';
   import TimerView from './TimerView.svelte';
   import MatRegion from './MatRegion.svelte';
+  import TokenView from './TokenView.svelte';
 
   type Handler = (e: PointerEvent | MouseEvent, ent: Entity) => void;
   type GhostHandler = (e: PointerEvent, cardId: string, srcMatId: string) => void;
@@ -109,13 +110,21 @@
     return { w: Math.round(maxX + 12), h: Math.round(maxY + 12) };
   });
 
-  // piles move by their hover handles; the body always takes the top item
-  // (PROPOSAL v4 §2). Region mats carry their handles inside MatRegion.
-  const showHandles = $derived(
-    !entity.locked &&
-      ((mat !== null && view !== 'region') ||
-        (entity.kind === 'token' && (entity.state.count ?? 1) > 1)),
-  );
+  // piles move by their hover handle; the body always takes the top item
+  // (PROPOSAL v4 §2). Region mats carry their handle inside MatRegion.
+  const showHandles = $derived(!entity.locked && mat !== null && view !== 'region');
+
+  // handles show only when hovering THIS entity, not an ancestor or child —
+  // CSS :hover applies to every ancestor of the pointer, so each view tracks
+  // whether the innermost hovered entity is itself (M17)
+  let el: HTMLDivElement | undefined = $state();
+  let hoverSelf = $state(false);
+  function onOver(e: PointerEvent) {
+    hoverSelf = (e.target as Element).closest?.('[data-entity-id]') === el;
+  }
+  function onOut() {
+    hoverSelf = false;
+  }
 
   function cardFace(c: CardEntity) {
     return faceVisible(table.state, c, me) ? c.config.front : null;
@@ -125,10 +134,12 @@
 {#if !(mat && !canSeeExistence(mat, me))}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
+    bind:this={el}
     class="entity"
     class:locked={entity.locked}
     class:selected={table.isSelected(entity.id)}
     class:matlike={showHandles}
+    class:hover-self={hoverSelf}
     class:priv-other={privLevel === 'other'}
     class:priv-mine={privLevel === 'mine'}
     style:left="{pos.x}px"
@@ -137,14 +148,16 @@
     data-entity-id={entity.id}
     data-drop={entity.kind === 'mat'
       ? `mat:${entity.id}`
-      : entity.kind === 'token'
-        ? `token:${entity.id}`
+      : entity.kind === 'token' || entity.kind === 'card'
+        ? `item:${entity.id}`
         : undefined}
     onpointerdown={(e) => handlers.onGrab(e, entity)}
     ondblclick={(e) => handlers.onDouble(e, entity)}
     oncontextmenu={(e) => handlers.onMenu(e, entity)}
     onpointerenter={() => handlers.onHover(entity.id)}
     onpointerleave={() => handlers.onHover(null)}
+    onpointerover={onOver}
+    onpointerout={onOut}
   >
     {#if mat}
       {#if view === 'region'}
@@ -152,6 +165,7 @@
           {mat}
           privileged={isPrivileged}
           sizeOverride={fitSize}
+          hovered={hoverSelf}
           onMove={(e) => handlers.onMatMove(e, entity)}
         >
           {#each items as child (child.id)}
@@ -187,29 +201,31 @@
           <span class="label">{matLabel}</span>
         </div>
       {:else}
-        <!-- stack -->
-        <div class="stack" class:priv={isPrivileged} style:min-width="72px" style:min-height="100px">
+        <!-- stack: 2+ items always show a second piece peeking out from
+             behind the top, with a contrasting rim between them (M17) -->
+        {@const second = stacked[1]}
+        <div
+          class="stack"
+          class:priv={isPrivileged}
+          style:min-width={mat.config.implicit ? undefined : '72px'}
+          style:min-height={mat.config.implicit ? undefined : '100px'}
+        >
           {#if stacked.length === 0}
             <div class="empty">{mat.config.label}</div>
           {:else}
             {#if stacked.length > 1}
               <div class="under">
-                {#if top?.kind === 'card'}
-                  <CardFaceView w={top.config.w} h={top.config.h} />
+                {#if second?.kind === 'token'}
+                  <TokenView config={second.config} under />
+                {:else if second?.kind === 'card'}
+                  <CardFaceView w={second.config.w} h={second.config.h} />
                 {/if}
               </div>
             {/if}
             {#if top?.kind === 'card'}
               <CardFaceView face={cardFace(top)} w={top.config.w} h={top.config.h} />
             {:else if top?.kind === 'token'}
-              <div
-                class="token"
-                style:width="{top.config.size}px"
-                style:height="{top.config.size}px"
-                style:background={top.config.color}
-              >
-                {top.config.label}
-              </div>
+              <TokenView config={top.config} />
             {/if}
             {#if showCount}
               <span class="count">{mat.config.supply === 'infinite' ? '∞' : stacked.length}</span>
@@ -224,7 +240,7 @@
           <Self entity={child} {handlers} />
         {/each}
       {/if}
-      {#if sum !== null && showCount}
+      {#if sum !== null && (sum !== 0 || !mat.config.implicit) && showCount}
         <span class="sumbadge" title="sum of {mat.config.showSum}">Σ {sum}</span>
       {/if}
       {#if mat.config.buttons?.length}
@@ -241,27 +257,7 @@
         </div>
       {/if}
     {:else if entity.kind === 'token'}
-      <div
-        class="token"
-        class:square={entity.config.shape === 'square'}
-        class:hex={entity.config.shape === 'hex'}
-        class:bar={entity.config.shape === 'bar'}
-        style:width="{entity.config.size}px"
-        style:height="{entity.config.shape === 'bar'
-          ? Math.round(entity.config.size * 0.3)
-          : entity.config.size}px"
-        style:background={entity.config.color}
-        style:transform={entity.pos.rot ? `rotate(${entity.pos.rot}deg)` : undefined}
-      >
-        {entity.config.label}
-        {#if (entity.state.count ?? 1) > 1}
-          <span class="stackbadge">
-            ×{entity.state.count}{entity.config.values?.value
-              ? ` = ${entity.config.values.value * entity.state.count}`
-              : ''}
-          </span>
-        {/if}
-      </div>
+      <TokenView config={entity.config} rot={entity.pos.rot} />
     {:else if entity.kind === 'dice'}
       <DiceView dice={entity} />
     {:else if entity.kind === 'counter'}
@@ -283,15 +279,14 @@
       <span class="anno" title={entity.annotation}>📝</span>
     {/if}
     {#if showHandles}
-      {#each ['n', 'e', 's', 'w'] as side (side)}
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
-          class="mhandle h-{side}"
-          data-handle="move"
-          title="move the pile"
-          onpointerdown={(e) => handlers.onMatMove(e, entity)}
-        ></div>
-      {/each}
+      <!-- ONE handle, bottom-center (M17) — the hover-button bar owns the top -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="mhandle h-s"
+        data-handle="move"
+        title="move the pile (or ⇧-drag it)"
+        onpointerdown={(e) => handlers.onMatMove(e, entity)}
+      ></div>
     {/if}
   </div>
 {/if}
@@ -305,8 +300,9 @@
   .entity.locked {
     cursor: default;
   }
-  /* piles reveal their mat nature on hover: dotted outline + handles */
-  .entity.matlike:hover {
+  /* piles reveal their mat nature on hover: dotted outline + handle —
+     only when THIS pile is the innermost hovered entity (M17) */
+  .entity.matlike.hover-self {
     outline: 1.5px dashed rgba(255, 255, 255, 0.45);
     outline-offset: 4px;
     border-radius: 8px;
@@ -340,73 +336,26 @@
     transition: opacity 0.1s;
     z-index: 6;
   }
-  .entity:hover .mhandle {
+  .entity.hover-self > .mhandle {
     opacity: 1;
-  }
-  .h-n {
-    top: -10px;
-    left: 50%;
-    transform: translateX(-50%);
   }
   .h-s {
     bottom: -10px;
     left: 50%;
     transform: translateX(-50%);
   }
-  .h-e {
-    right: -10px;
-    top: 50%;
-    transform: translateY(-50%);
-  }
-  .h-w {
-    left: -10px;
-    top: 50%;
-    transform: translateY(-50%);
-  }
-  .token {
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-    font-weight: 700;
-    color: rgba(255, 255, 255, 0.9);
-    box-shadow:
-      inset 0 -3px 0 rgba(0, 0, 0, 0.25),
-      0 1px 3px rgba(0, 0, 0, 0.4);
-    user-select: none;
-    position: relative;
-  }
-  .token.square {
-    border-radius: 4px;
-  }
-  .token.hex {
-    border-radius: 0;
-    clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
-    box-shadow: none;
-  }
-  .token.bar {
-    border-radius: 3px;
-  }
-  .stackbadge {
-    position: absolute;
-    top: -9px;
-    right: -12px;
-    background: var(--panel);
-    border: 1px solid #454f60;
-    border-radius: 10px;
-    padding: 0px 5px;
-    font-size: 0.6rem;
-    color: var(--text);
-  }
   .stack,
   .fan {
     position: relative;
   }
+  /* the second piece peeks out clearly, with a contrasting rim (M17) */
   .under {
     position: absolute;
-    left: 2px;
-    top: 2px;
+    left: 4px;
+    top: 5px;
+  }
+  .under > :global(.face) {
+    outline: 1.5px solid rgba(255, 255, 255, 0.75);
   }
   .stack > :global(.face) {
     position: relative;

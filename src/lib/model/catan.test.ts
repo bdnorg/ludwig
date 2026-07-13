@@ -5,7 +5,7 @@ import * as ops from './ops';
 import { catanTable, catanMacros } from './catan';
 import { generateSlots, hexGeometry } from './boards';
 import { runMacro } from './macros';
-import { TestPeer, token } from './testutil';
+import { TestPeer } from './testutil';
 
 describe('board geometry (v4 §7 generators)', () => {
   it('radius-2 hexgrid has 19 hexes, 54 vertices, 72 edges', () => {
@@ -94,14 +94,18 @@ describe('catan template', () => {
     expect(matItems(peer2.state, tilesMat)).toHaveLength(0);
   });
 
-  it('finite reserves: 5 settlements, 4 cities, 15 roads per color', () => {
+  it('finite reserves: 5 settlements, 4 cities, 15 roads per color (as piles)', () => {
     const reserves = all().filter(
       (e): e is MatEntity => e.kind === 'mat' && e.config.label.endsWith('pieces'),
     );
     expect(reserves).toHaveLength(4);
     for (const r of reserves) {
-      const stacks = matItems(peer.state, r).filter((e): e is TokenEntity => e.kind === 'token');
-      expect(stacks.map((s) => s.state.count).sort((a, b) => a - b)).toEqual([4, 5, 15]);
+      const piles = matItems(peer.state, r).filter(
+        (e): e is MatEntity => e.kind === 'mat' && !!e.config.implicit,
+      );
+      expect(
+        piles.map((p) => matItems(peer.state, p).length).sort((a, b) => a - b),
+      ).toEqual([4, 5, 15]);
     }
   });
 
@@ -116,30 +120,25 @@ describe('catan template', () => {
     ).toHaveLength(25);
   });
 
-  it('a road pulled from a reserve snaps to an edge slot with rotation', () => {
+  it('a road pulled off its reserve pile snaps to an edge slot with rotation', () => {
     const reserve = all().find(
       (e): e is MatEntity => e.kind === 'mat' && e.config.label === 'Red pieces',
     )!;
-    const roads = matItems(peer.state, reserve).find(
-      (e): e is TokenEntity => e.kind === 'token' && (e.config.tags ?? []).includes('road'),
+    const roadPile = matItems(peer.state, reserve).find(
+      (e): e is MatEntity =>
+        e.kind === 'mat' && matItems(peer.state, e).length === 15,
     )!;
-    // drop roughly at the first edge slot, offset a bit
+    const road = matItems(peer.state, roadPile)[0] as TokenEntity;
+    // drop roughly at the first edge slot, offset a bit — the pull is an
+    // ordinary moveToMat out of the pile (M17)
     const edge = board.config.placement.slots!.find((s) => s.accepts?.includes('road'))!;
     peer.apply(
-      ops.takeOneTo(peer, roads, board, {
-        x: edge.x - 10,
-        y: edge.y - 25,
-        z: 5,
-        rot: 0,
+      ops.moveToMat(peer, road, board, {
+        pos: { x: edge.x - 10, y: edge.y - 25, z: 5, rot: 0 },
       }),
     );
-    const placed = Object.values(peer.state.entities).find(
-      (e): e is TokenEntity =>
-        e.kind === 'token' &&
-        e.parent === board.id &&
-        (e.config.tags ?? []).includes('road') &&
-        e.state.count === 1,
-    )!;
+    const placed = peer.state.entities[road.id] as TokenEntity;
+    expect(placed.parent).toBe(board.id);
     // bars render 0.3× as tall as wide; the snap centers on that shape
     const hw = placed.config.size / 2;
     const hh = Math.round(placed.config.size * 0.3) / 2;
@@ -151,39 +150,7 @@ describe('catan template', () => {
         (s.rot ?? 0) === placed.pos.rot,
     );
     expect(snapped).toBe(true);
-    // ...and never to a vertex/hex slot: rot comes from an edge
-    const rest = matItems(peer.state, peer.state.entities[reserve.id] as MatEntity).find(
-      (e): e is TokenEntity => e.kind === 'token' && (e.config.tags ?? []).includes('road'),
-    )!;
-    expect(rest.state.count).toBe(14);
-  });
-
-  it('takeOneTo deletes the stack when the last piece is taken', () => {
-    const peer2 = new TestPeer('b');
-    const t = token('t1', 'b', 1);
-    t.state.count = 1;
-    peer2.apply([{ t: 'put', entity: t }]);
-    peer2.apply(ops.takeOneTo(peer2, t, null, { x: 9, y: 9, z: 1, rot: 0 }));
-    const toks = Object.values(peer2.state.entities).filter((e) => e.kind === 'token');
-    expect(toks).toHaveLength(1);
-    expect((toks[0] as TokenEntity).state.count).toBe(1);
-    expect(peer2.state.entities['t1']).toBeUndefined();
-  });
-
-  it('transferToken moves one piece between matching stacks', () => {
-    const peer2 = new TestPeer('b');
-    const a = token('ta', 'b', 1);
-    a.state.count = 3;
-    const b = token('tb', 'b', 1);
-    b.state.count = 2;
-    peer2.apply([{ t: 'put', entity: a }, { t: 'put', entity: b }]);
-    peer2.apply(ops.transferToken(peer2, a, b));
-    expect((peer2.state.entities['ta'] as TokenEntity).state.count).toBe(2);
-    expect((peer2.state.entities['tb'] as TokenEntity).state.count).toBe(3);
-    // draining the source deletes it
-    peer2.apply(ops.transferToken(peer2, peer2.state.entities['ta'] as TokenEntity, peer2.state.entities['tb'] as TokenEntity));
-    peer2.apply(ops.transferToken(peer2, peer2.state.entities['ta'] as TokenEntity, peer2.state.entities['tb'] as TokenEntity));
-    expect(peer2.state.entities['ta']).toBeUndefined();
-    expect((peer2.state.entities['tb'] as TokenEntity).state.count).toBe(5);
+    // the reserve pile is finite by construction: 14 roads remain
+    expect(matItems(peer.state, peer.state.entities[roadPile.id] as MatEntity)).toHaveLength(14);
   });
 });

@@ -19,7 +19,6 @@
   let shape = $state((cfg.shape as string) ?? 'disc');
   let size = $state((cfg.size as number) ?? 28);
   let value = $state(((cfg.values as Record<string, number>)?.value as number) ?? 0);
-  let count = $state(snap.kind === 'token' ? (snap.state.count ?? 1) : 1);
   let sides = $state((cfg.sides as number) ?? 6);
   let counterValue = $state(snap.kind === 'counter' ? snap.state.value : 0);
   const front = (cfg.front ?? {}) as Record<string, string | undefined>;
@@ -39,7 +38,6 @@
         d.config.size = Math.max(10, Math.min(200, Math.round(size) || 28));
         if (value) d.config.values = { ...d.config.values, value };
         else if (d.config.values) delete d.config.values.value;
-        d.state.count = Math.max(1, Math.min(999, Math.round(count) || 1));
       } else if (d.kind === 'dice') {
         d.config.sides = Math.max(2, Math.min(1000, Math.round(sides) || 6));
       } else if (d.kind === 'card') {
@@ -69,7 +67,6 @@
       Value (chips: their worth — stacks show the total)
       <input data-field="value" type="number" bind:value={value} />
     </label>
-    <label>Count <input data-field="count" type="number" min="1" bind:value={count} /></label>
     <div class="row2">
       <label>
         Shape

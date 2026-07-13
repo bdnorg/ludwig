@@ -191,6 +191,7 @@ export interface MatOpts {
   showSum?: string;
   buttons?: MatEntity['config']['buttons'];
   quickActions?: string[];
+  implicit?: boolean;
 }
 
 export function makeMat(version: Version, pos: Pos, o: MatOpts): MatEntity {
@@ -230,6 +231,7 @@ export function makeMat(version: Version, pos: Pos, o: MatOpts): MatEntity {
       showSum: o.showSum,
       buttons: o.buttons,
       quickActions: o.quickActions,
+      implicit: o.implicit,
     },
     state: { order: o.order ?? [] },
   };
@@ -312,7 +314,9 @@ export function handOf(s: TableState, playerId: string): MatEntity | undefined {
  *  The root mat is not a send-to target (that move is "to the table"). */
 export function matLetters(s: TableState): Record<string, string> {
   const mats = Object.values(s.entities)
-    .filter((e): e is MatEntity => e.kind === 'mat' && e.id !== ROOT_MAT_ID)
+    .filter(
+      (e): e is MatEntity => e.kind === 'mat' && e.id !== ROOT_MAT_ID && !e.config.implicit,
+    )
     .sort((a, b) => (a.id < b.id ? -1 : 1));
   const used = new Set<string>();
   const out: Record<string, string> = {};

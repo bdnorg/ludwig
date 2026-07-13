@@ -15,7 +15,7 @@ import type { OpCtx } from '../model/ops';
 import { handIdFor, makeMat, makeRootMat, matPresets, ROOT_MAT_ID, rootMat } from '../model/mats';
 import { newId } from '../model/types';
 import { bindTab, loadPlayer } from './player';
-import { loadTable, saveTable } from './persist';
+import { loadTable, migrate, saveTable } from './persist';
 
 export interface NetLink {
   sendMuts(muts: Mutation[]): void;
@@ -218,6 +218,7 @@ export class TableStore implements OpCtx {
   }
 
   receiveSnapshot(snap: TableState): void {
+    migrate(snap); // old exports/peers may still carry pre-M17 shapes
     mergeSnapshot(this.state, snap);
     this.clock = Math.max(this.clock, maxClock(snap));
     this.saveSoon();

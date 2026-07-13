@@ -21,6 +21,8 @@ const settle = () => page.waitForTimeout(700);
 const state = () => page.evaluate((room) => JSON.parse(localStorage.getItem(`ludwig:table:${room}`)), ROOM);
 const finders = {
   token: (s) => Object.values(s.entities).find((e) => e.kind === 'token'),
+  // chip piles are implicit stack mats since M17
+  pile: (s) => Object.values(s.entities).find((e) => e.kind === 'mat' && e.config.implicit),
   dice: (s) => Object.values(s.entities).find((e) => e.kind === 'dice'),
   counter: (s) => Object.values(s.entities).find((e) => e.kind === 'counter'),
   scoreboard: (s) => Object.values(s.entities).find((e) => e.kind === 'scoreboard'),
@@ -29,7 +31,7 @@ const finders = {
     Object.values(s.entities).find((e) => e.kind === 'mat' && e.config.label === 'Play area'),
   deck: (s) =>
     Object.values(s.entities).find(
-      (e) => e.kind === 'mat' && e.config.placement.type === 'stack',
+      (e) => e.kind === 'mat' && e.config.placement.type === 'stack' && !e.config.implicit,
     ),
 };
 const find = (s, kind) => finders[kind](s);
@@ -45,12 +47,24 @@ async function drag(from, to, { alt = false } = {}) {
 }
 
 /** Move an entity by its hover move-handle (piles/mats never body-drag, M13).
- *  Use the EAST handle: the north one sits under the hover-button bar. */
+ *  ONE handle since M17: bottom-center (.h-s); the hover-button bar owns the
+ *  top edge. */
 async function dragByHandle(e, dx, dy, hover = { dx: 10, dy: 10 }) {
   await page.mouse.move(e.pos.x + hover.dx, e.pos.y + hover.dy + TOOLBAR); // reveal handles
-  const bb = await page.locator(`[data-entity-id="${e.id}"] .h-e`).boundingBox();
+  const bb = await page.locator(`[data-entity-id="${e.id}"] .h-s`).boundingBox();
   const c = { x: bb.x + bb.width / 2, y: bb.y + bb.height / 2 };
   await drag(c, { x: c.x + dx, y: c.y + dy });
+}
+
+/** Drop the pointer on an entity's bullseye (top-right ring, M17): approach
+ *  over the body so the ring appears, then release on the ring. */
+async function dropOnBullseye(from, targetId) {
+  const bb = await page.locator(`[data-entity-id="${targetId}"]`).boundingBox();
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2, { steps: 6 });
+  await page.mouse.move(bb.x + bb.width, bb.y, { steps: 4 });
+  await page.mouse.up();
 }
 
 /** spawn from the palette, then move the new entity to (tx, ty) — piles and
@@ -60,7 +74,7 @@ async function spawnAt(label, kind, tx, ty, grab = { dx: 10, dy: 10 }) {
   await page.click(`.menu button:has-text("${label}")`);
   await settle();
   const e = find(await state(), kind);
-  if (kind === 'deck' || kind === 'token' || kind === 'zone') {
+  if (kind === 'deck' || kind === 'pile' || kind === 'zone') {
     await dragByHandle(e, tx - e.pos.x, ty - e.pos.y, grab);
   } else {
     await drag(
@@ -73,7 +87,7 @@ async function spawnAt(label, kind, tx, ty, grab = { dx: 10, dy: 10 }) {
 }
 
 // lay the toolkit out on a grid so nothing overlaps
-const chip = await spawnAt('Chips $5', 'token', 150, 550, { dx: 17, dy: 17 });
+const chip = await spawnAt('Chips $5', 'pile', 150, 550, { dx: 17, dy: 17 });
 const dice = await spawnAt('Die (d6)', 'dice', 350, 560, { dx: 20, dy: 20 });
 await spawnAt('Counter', 'counter', 550, 550, { dx: 46, dy: 8 });
 await spawnAt('Scoreboard', 'scoreboard', 800, 520, { dx: 60, dy: 8 });
@@ -124,27 +138,46 @@ ok(
   `timer paused at ${find(s, 'timer').state.elapsedMs}ms`,
 );
 
-// chips: split via context menu ("Take 1"), then merge back by dragging
-await page.mouse.click(chip.pos.x + 17, chip.pos.y + 17 + TOOLBAR, { button: 'right' });
-await page.click('.menu button:has-text("Take 1")');
+// chips (M17): a pile is an implicit stack mat of 20 single chips.
+// Body-drag pulls ONE off; only the bullseye merges it back.
+const inPile = (st) => Object.values(st.entities).filter((e) => e.parent === chip.id);
+const looseTok = (st) =>
+  Object.values(st.entities).filter((e) => e.kind === 'token' && e.parent === null);
+ok(inPile(s).length === 20, `chip pile holds 20 single chips (${inPile(s).length})`);
+
+await drag(
+  { x: chip.pos.x + 17, y: chip.pos.y + 17 + TOOLBAR },
+  { x: chip.pos.x + 117, y: chip.pos.y + 17 + TOOLBAR },
+);
 await settle();
 s = await state();
-let stacks = Object.values(s.entities).filter((e) => e.kind === 'token');
 ok(
-  stacks.length === 2 && stacks.map((t) => t.state.count).sort((a, b) => a - b).join() === '1,19',
-  'took 1 chip off the stack',
+  inPile(s).length === 19 && looseTok(s).length === 1,
+  'body drag pulled one chip off the pile',
 );
 
-const small = stacks.find((t) => t.state.count === 1);
-const big = stacks.find((t) => t.state.count === 19);
+// a plain overlap drop does NOT merge (M17: no implicit merge)
+let lc = looseTok(s)[0];
 await drag(
-  { x: small.pos.x + 17, y: small.pos.y + 17 + TOOLBAR },
-  { x: big.pos.x + 17, y: big.pos.y + 17 + TOOLBAR },
+  { x: lc.pos.x + 17, y: lc.pos.y + 17 + TOOLBAR },
+  { x: chip.pos.x + 12, y: chip.pos.y + 26 + TOOLBAR },
 );
 await settle();
 s = await state();
-stacks = Object.values(s.entities).filter((e) => e.kind === 'token');
-ok(stacks.length === 1 && stacks[0].state.count === 20, 'dragging chip onto stack merged back to 20');
+ok(
+  inPile(s).length === 19 && looseTok(s).length === 1,
+  'overlap drop only overlapped — no merge without the bullseye',
+);
+
+// dropping ON the bullseye merges it back
+lc = looseTok(s)[0];
+await dropOnBullseye({ x: lc.pos.x + 17, y: lc.pos.y + 17 + TOOLBAR }, chip.id);
+await settle();
+s = await state();
+ok(
+  inPile(s).length === 20 && looseTok(s).length === 0,
+  `bullseye drop merged the chip back (pile of ${inPile(s).length})`,
+);
 
 // mat entry rule: draw a card face up, then drag it into the face-down mat —
 // it re-parents into the mat and flips down on entry
@@ -198,7 +231,7 @@ ok(
 );
 
 // undo returns it to the deck
-const deckCount = () => page.evaluate(() => document.querySelector('.count')?.textContent);
+const deckCount = () => page.evaluate((id) => document.querySelector(`[data-entity-id="${id}"] .count`)?.textContent, deck.id);
 const before = await deckCount();
 await page.click('.toolbar button:has-text("undo")');
 await settle();
@@ -299,17 +332,17 @@ ok(
 
 // M10: ] brings to front, [ sends to back
 s = await state();
-const chipNow = find(s, 'token');
+const chipNow = find(s, 'pile');
 const zBefore = chipNow.pos.z;
 await page.mouse.move(chipNow.pos.x + 17, chipNow.pos.y + 17 + TOOLBAR);
 await page.keyboard.press(']');
 await settle();
 s = await state();
-ok(find(s, 'token').pos.z > zBefore, `] raised z (${zBefore} → ${find(s, 'token').pos.z})`);
+ok(find(s, 'pile').pos.z > zBefore, `] raised z (${zBefore} → ${find(s, 'pile').pos.z})`);
 await page.keyboard.press('[');
 await settle();
 s = await state();
-ok(find(s, 'token').pos.z < zBefore, `[ lowered z below all (${find(s, 'token').pos.z})`);
+ok(find(s, 'pile').pos.z < zBefore, `[ lowered z below all (${find(s, 'pile').pos.z})`);
 
 // M10: reorder within the hand tray by dragging a card to the other end
 await page.mouse.move(deck.pos.x + 36, deck.pos.y + 50 + TOOLBAR);
@@ -388,7 +421,7 @@ ok(
 
 // rubber-band on plain felt drag: sweep over the chip and the dice
 s = await state();
-const chipSel = find(s, 'token');
+const chipSel = find(s, 'pile');
 const diceSel = find(s, 'dice');
 await drag({ x: 60, y: 480 + TOOLBAR }, { x: 460, y: 640 + TOOLBAR });
 await page.waitForTimeout(200);
@@ -403,7 +436,7 @@ await drag(
 );
 await settle();
 s = await state();
-const chipMoved = find(s, 'token');
+const chipMoved = find(s, 'pile');
 const diceMoved = find(s, 'dice');
 ok(
   Math.abs(chipMoved.pos.x - posBefore.chip.x - 80) < 3 &&
@@ -416,7 +449,7 @@ await page.click('.toolbar button:has-text("undo")');
 await settle();
 s = await state();
 ok(
-  find(s, 'token').pos.x === posBefore.chip.x && find(s, 'dice').pos.x === posBefore.dice.x,
+  find(s, 'pile').pos.x === posBefore.chip.x && find(s, 'dice').pos.x === posBefore.dice.x,
   'one undo reversed the whole multi-move',
 );
 
@@ -461,7 +494,14 @@ await page.click('.toolbar button.primary');
 await page.click('.menu button:has-text("Dice tray")');
 await settle();
 s = await state();
-const tray = Object.values(s.entities).find(
+let tray = Object.values(s.entities).find(
+  (e) => e.kind === 'mat' && e.config.label === 'Dice tray',
+);
+// park the tray on empty felt so nothing intercepts its Roll button
+await dragByHandle(tray, 60 - tray.pos.x, 700 - tray.pos.y, { dx: 40, dy: 10 });
+await settle();
+s = await state();
+tray = Object.values(s.entities).find(
   (e) => e.kind === 'mat' && e.config.label === 'Dice tray',
 );
 let trayDice = Object.values(s.entities).filter((e) => e.kind === 'dice' && e.parent === tray.id);
@@ -479,11 +519,11 @@ ok(
   'the tray Roll button rolled both dice',
 );
 
-// chip stacks show their value total (20 x $5 = 100)
+// chip piles show their value total via the mat Σ badge (20 × $5 = 100)
 const badges = await page.evaluate(() =>
-  [...document.querySelectorAll('.stackbadge')].map((b) => b.textContent.replace(/\s+/g, ' ').trim()),
+  [...document.querySelectorAll('.sumbadge')].map((b) => b.textContent.replace(/\s+/g, ' ').trim()),
 );
-ok(badges.some((t) => t.includes('= 100')), `chip stack shows value total (${badges.join(' | ')})`);
+ok(badges.some((t) => t.includes('100')), `chip pile shows value total (${badges.join(' | ')})`);
 
 // item settings: retype a die to d20 through the dialog
 const die0 = trayDice[0];
@@ -543,10 +583,8 @@ ok(
 const clone = Object.values(s.entities).find(
   (e) => e.kind === 'card' && e.parent === null && Math.abs(e.pos.x + 36 - 480) < 30,
 );
-await drag(
-  { x: clone.pos.x + 36, y: clone.pos.y + 50 + TOOLBAR },
-  { x: deck.pos.x + 36, y: deck.pos.y + 50 + TOOLBAR },
-);
+// returns go through the bullseye too (M17): drop the clone ON the ring
+await dropOnBullseye({ x: clone.pos.x + 36, y: clone.pos.y + 50 + TOOLBAR }, deck.id);
 await settle();
 s = await state();
 ok(
