@@ -90,6 +90,27 @@ the checkboxes as work lands.
         mat (both spymasters as owners). No new primitive.
       - Blokus shaped/multi-cell tokens and Pictionary sketch primitive:
         genuinely new primitives — ASK the user before building either.
+      - Catan beginner layout in config: the fixed tile positions come from
+        hexGeometry(); genboxes.mjs may duplicate that math (it's ~20 lines,
+        node-side generator only — the MANIFEST stays plain coordinates).
+        Do NOT add an onLoad-macro loader feature for this; precomputed
+        coordinates in the generated JSON are simpler and deterministic.
+      - Retiring the code templates: only after Dominion + Catan boxes land
+        and their tests pass, delete cards52.ts/dominion.ts/catan.ts + the
+        TEMPLATES entries in ONE commit, and in that commit convert the
+        "matches today's table" tests to literal expectations (counts,
+        labels, face sets) — the code reference disappears with the code.
+      - Codenames owners: a gamebox can't pre-assign owners (player ids are
+        per-table). Ship the key mat as privacy 'nothing' with no owner;
+        spymasters claim it via Mat settings → owners (M16 UI exists). Put
+        that instruction in the box's setup note.
+      - Uploaded gameboxes are a SINGLE manifest.json (no directory upload):
+        their assets must be absolute URLs or data: URIs. Only the built-in
+        packages get relative asset paths (the lobby fetcher absolutizes
+        them against the package dir before requestGamebox).
+      - Cribbage pegging track / other custom slot boards: compute the slot
+        list in genboxes.mjs and emit plain `slots` arrays — no new
+        SlotGenerate kinds unless a board turns out to need thousands.
 
 **Mechanical — safe for Sonnet/Opus now that the foundation exists.**
 How to add a gamebox: add a section to `scripts/genboxes.mjs` (or hand-write
