@@ -53,6 +53,7 @@
   import TokenView from './TokenView.svelte';
   import Palette from './Palette.svelte';
   import LogPanel from './LogPanel.svelte';
+  import ReferencePages from './ReferencePages.svelte';
 
   let { room }: { room: string } = $props();
 
@@ -194,6 +195,11 @@
   const rootGrid = $derived(
     root?.config.placement.type === 'grid' ? (root.config.placement.grid ?? null) : null,
   );
+  // gamebox reference pages ride the root mat's config like macros (SPEC
+  // §13); the toolbar button only appears when there's something to show
+  // (every gesture needs a visible affordance — and no dead chrome either)
+  const referencePages = $derived(root?.config.reference ?? []);
+  let referenceOpen = $state(false);
 
   // ---- selection & hover (feeds hover buttons, palette, keys) ----
   let hoveredId = $state<string | null>(null);
@@ -1211,6 +1217,7 @@
       settingsMatId = null;
       itemSettingsId = null;
       paletteOpen = false;
+      referenceOpen = false;
       table.pendingSend = null;
       table.select([]);
       return;
@@ -1282,6 +1289,8 @@
     onExport={doExport}
     onImport={doImport}
     onUndo={() => table.undo()}
+    onReference={() => (referenceOpen = true)}
+    hasReference={referencePages.length > 0}
   />
   <input
     type="file"
@@ -1427,6 +1436,9 @@
     {#key settingsItem.id}
       <ItemSettings item={settingsItem} onClose={() => (itemSettingsId = null)} />
     {/key}
+  {/if}
+  {#if referenceOpen && referencePages.length > 0}
+    <ReferencePages pages={referencePages} onClose={() => (referenceOpen = false)} />
   {/if}
   {#if paletteOpen}
     <Palette

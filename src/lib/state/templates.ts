@@ -8,7 +8,7 @@ import { standardDeck } from '../model/cards52';
 import { dominionTable } from '../model/dominion';
 import { catanMacros, catanTable } from '../model/catan';
 import { cardTableMacros } from '../model/macros';
-import { buildGamebox, validateGamebox, type GameboxManifest } from '../model/gamebox';
+import { buildGamebox, rootGameboxMutation, validateGamebox, type GameboxManifest } from '../model/gamebox';
 import { ROOT_MAT_ID } from '../model/mats';
 import type { TableStore } from './store.svelte';
 
@@ -42,12 +42,7 @@ export function requestGamebox(manifest: GameboxManifest): void {
 
 /** Macros live on the root mat: behavior is configuration (SPEC §15). */
 function setRootMacros(store: TableStore, macros: MacroDef[]): void {
-  const root = store.state.entities[ROOT_MAT_ID];
-  if (root?.kind !== 'mat') return;
-  const draft = store.clone(root);
-  draft.config.macros = macros;
-  draft.version = store.next();
-  store.emit([{ t: 'put', entity: draft }]);
+  store.emit(rootGameboxMutation(store, { macros }));
 }
 
 export function applyPendingTemplate(store: TableStore): void {
@@ -81,9 +76,10 @@ export function applyPendingTemplate(store: TableStore): void {
     if (hasContent) return;
     try {
       const manifest = validateGamebox(JSON.parse(rawBox));
-      const { muts, macros } = buildGamebox(store, manifest);
+      const { muts, macros, reference } = buildGamebox(store, manifest);
       store.emit(muts);
-      if (macros.length > 0) setRootMacros(store, macros);
+      if (macros.length > 0 || reference.length > 0)
+        store.emit(rootGameboxMutation(store, { macros, reference }));
     } catch {
       /* corrupt stash — leave the fresh table */
     }

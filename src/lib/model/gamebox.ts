@@ -12,20 +12,20 @@
 // `in: "Island"` lands inside the mat declared with that label earlier in
 // the layout. Positions are relative to the gamebox origin.
 
-import type { Entity, EntityKind, MacroDef, MatEntity, Pos, TokenEntity } from './types';
+import type { Entity, EntityKind, MacroDef, MatEntity, Pos, ReferencePage, TokenEntity } from './types';
 import { newId } from './types';
 import type { Mutation } from './reducers';
 import type { OpCtx } from './ops';
 import { tokenPile } from './ops';
 import { buildCardSet, validateCardSet, type CardSetSpec } from './cardsets';
-import { makeMat, type MatOpts } from './mats';
+import { makeMat, ROOT_MAT_ID, type MatOpts } from './mats';
 
 // ---- manifest shape -------------------------------------------------------
 
-export interface GameboxReferencePage {
-  title: string;
-  md: string; // markdown-ish text, rendered read-only
-}
+/** A manifest's reference page is exactly the root-mat config shape
+ *  (types.ts's ReferencePage) — kept as its own name here since it's part
+ *  of the manifest's public surface, distinct from where it lands. */
+export type GameboxReferencePage = ReferencePage;
 
 /** JSON-safe subset of MatOpts a gamebox may declare. */
 export type GameboxMatOpts = Omit<MatOpts, 'id' | 'order' | 'positioning'>;
@@ -164,13 +164,14 @@ const DEFAULT_ORIGIN: Pos = { x: 60, y: 60, z: 1, rot: 0 };
 /** Instantiate a validated manifest into mutations for a fresh table.
  *  Layout coordinates are offset by `origin` — an explicit argument wins,
  *  otherwise the manifest's own `origin` (for layouts that need more
- *  margin), otherwise a small built-in default. Macros come back separately
- *  — they belong on the root mat (behavior is configuration, SPEC §15). */
+ *  margin), otherwise a small built-in default. Macros and reference pages
+ *  come back separately — both belong on the root mat (behavior AND
+ *  reference material are configuration, SPEC §13/§15). */
 export function buildGamebox(
   ctx: OpCtx,
   m: GameboxManifest,
   origin?: Pos,
-): { muts: Mutation[]; macros: MacroDef[] } {
+): { muts: Mutation[]; macros: MacroDef[]; reference: ReferencePage[] } {
   origin ??= m.origin ? { x: m.origin[0], y: m.origin[1], z: 1, rot: 0 } : DEFAULT_ORIGIN;
   const assets = m.assets ?? {};
   const muts: Mutation[] = [];
@@ -277,5 +278,25 @@ export function buildGamebox(
         break;
     }
   }
-  return { muts, macros: m.macros ?? [] };
+  return { muts, macros: m.macros ?? [], reference: m.reference ?? [] };
+}
+
+// ---- root-mat config (macros + reference pages live there) ---------------
+
+/** A mutation stamping macros and/or reference pages onto the root mat —
+ *  pure over an OpCtx so both the app (via TableStore, which implements
+ *  OpCtx) and tests can drive it without a full store. Empty arrays are
+ *  left untouched rather than clobbering what's already there, so this
+ *  composes with hand-authored macros/pages set some other way. */
+export function rootGameboxMutation(
+  ctx: OpCtx,
+  extra: { macros?: MacroDef[]; reference?: ReferencePage[] },
+): Mutation[] {
+  const root = ctx.state.entities[ROOT_MAT_ID];
+  if (root?.kind !== 'mat') return [];
+  const draft = ctx.clone(root);
+  if (extra.macros?.length) draft.config.macros = extra.macros;
+  if (extra.reference?.length) draft.config.reference = extra.reference;
+  draft.version = ctx.next();
+  return [{ t: 'put', entity: draft }];
 }

@@ -85,6 +85,7 @@ timers, zones, and notes — or import your own card set / saved template
 | Board slots (Catan) | pieces snap to matching hex/corner/edge slots |
 | Arrange something just for yourself | right-click → Position: my view only |
 | Deal / gather / reset in one click | quick-action strip (template-defined macros) |
+| Read a gamebox's rules summary | toolbar → 📖 reference (only shown when the box ships one) |
 | How it all works | the lobby's "how it works" page (#/help) |
 
 Run `node scripts/m4test.mjs`, `dominiontest.mjs`, `catantest.mjs`,

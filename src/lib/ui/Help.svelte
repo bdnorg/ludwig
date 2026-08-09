@@ -39,6 +39,10 @@
       title: 'Everything else',
       rows: [
         ['Command palette', 'Space — lists every action for what you point at'],
+        [
+          'A gamebox’s rules summary',
+          'toolbar → 📖 reference (only shown when the box ships one)',
+        ],
         ['Roll dice', 'double-click them (or press r); a tray’s Roll button rolls all'],
         ['Skip a grid snap', 'hold ⌥ while dropping (mats snap by default)'],
         ['Edit an item (value, sides, label…)', 'right-click → Item settings…'],

@@ -8,11 +8,15 @@
     onImport,
     onExport,
     onUndo,
+    onReference,
+    hasReference = false,
   }: {
     onAddMenu: (e: MouseEvent) => void;
     onImport: (file: File) => void;
     onExport: () => void;
     onUndo: () => void;
+    onReference?: () => void;
+    hasReference?: boolean;
   } = $props();
 
   let copied = $state(false);
@@ -46,6 +50,11 @@
   >
     ↩ undo
   </button>
+  {#if hasReference}
+    <button class="tinybtn" onclick={onReference} title="this gamebox's rules/reference pages">
+      📖 reference
+    </button>
+  {/if}
 
   <span class="spacer"></span>
   <button class="tinybtn" onclick={onExport} title="save the table as a file — a save doubles as a template">

@@ -6,12 +6,12 @@ import euchrebox from '../../../public/gameboxes/euchre/manifest.json';
 import dominionbox from '../../../public/gameboxes/dominion/manifest.json';
 import catanbox from '../../../public/gameboxes/catan/manifest.json';
 import type { CardEntity, MatEntity, TokenEntity } from './types';
-import { buildGamebox, validateGamebox } from './gamebox';
+import { buildGamebox, rootGameboxMutation, validateGamebox } from './gamebox';
 import { standardDeck } from './cards52';
 import { dominionTable } from './dominion';
 import { catanTable, catanMacros } from './catan';
 import { cardTableMacros } from './macros';
-import { matItems } from './mats';
+import { makeRootMat, matItems, ROOT_MAT_ID } from './mats';
 import { TestPeer } from './testutil';
 
 const loadBox = (raw: unknown) => validateGamebox(JSON.parse(JSON.stringify(raw)));
@@ -104,6 +104,34 @@ describe('gamebox building', () => {
     )!;
     expect(matItems(peer.state, pile)).toHaveLength(7);
   });
+
+  it('reference pages land on the root mat config (the read-only viewer’s source, SPEC §13)', () => {
+    const peer = new TestPeer('a');
+    peer.apply([{ t: 'put', entity: makeRootMat(peer.next()) }]); // table setup, as the app does
+    const manifest = validateGamebox({
+      gamebox: 1,
+      name: 'x',
+      layout: [{ type: 'note', at: [0, 0], text: 'hi' }],
+      reference: [
+        { title: 'Quick rules', md: '# Setup\nShuffle and deal.' },
+        { title: 'Scoring', md: 'First to 10 wins.' },
+      ],
+    });
+    const { muts, macros, reference } = buildGamebox(peer, manifest);
+    peer.apply(muts);
+    expect(reference).toEqual(manifest.reference);
+
+    // nothing lands until it's stamped onto the root, same as macros
+    expect((peer.state.entities[ROOT_MAT_ID] as MatEntity).config.reference).toBeUndefined();
+    peer.apply(rootGameboxMutation(peer, { macros, reference }));
+    const root = peer.state.entities[ROOT_MAT_ID] as MatEntity;
+    expect(root.config.reference).toEqual(manifest.reference);
+    expect(root.config.macros ?? []).toEqual([]); // this manifest declared none
+
+    // an empty reference array (no root mat present) is a safe no-op
+    const bare = new TestPeer('b');
+    expect(rootGameboxMutation(bare, { reference: [] })).toEqual([]);
+  });
 });
 
 describe('built-in packages match today’s tables', () => {
@@ -142,7 +170,9 @@ describe('built-in packages match today’s tables', () => {
 
   it('euchre box holds the 24-card deck (9–A) plus table furniture', () => {
     const peer = new TestPeer('a');
-    const { muts } = buildGamebox(peer, loadBox(euchrebox));
+    peer.apply([{ t: 'put', entity: makeRootMat(peer.next()) }]);
+    const box = loadBox(euchrebox);
+    const { muts, macros, reference } = buildGamebox(peer, box);
     peer.apply(muts);
     const deck = Object.values(peer.state.entities).find(
       (e): e is MatEntity => e.kind === 'mat' && e.config.label === 'Deck',
@@ -157,6 +187,11 @@ describe('built-in packages match today’s tables', () => {
     expect(
       Object.values(peer.state.entities).filter((e) => e.kind === 'counter'),
     ).toHaveLength(2);
+    // real shipped data: euchre's manifest carries a rules-summary reference
+    // page — this is the box that exercises the reference-panel feature
+    expect(reference).toEqual([expect.objectContaining({ title: 'Quick rules' })]);
+    peer.apply(rootGameboxMutation(peer, { macros, reference }));
+    expect((peer.state.entities[ROOT_MAT_ID] as MatEntity).config.reference).toEqual(reference);
   });
 
   it('dominion box reproduces dominionTable (supply piles, kingdom, starters)', () => {

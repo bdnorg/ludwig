@@ -131,6 +131,15 @@ export interface MacroDef {
   steps: MacroStep[];
 }
 
+// ---- reference pages (SPEC §13: readable in a panel, nothing spawns) -----
+
+/** A gamebox's read-only rules summary — carried on the root mat's config
+ *  like macros (behavior AND reference material are configuration). */
+export interface ReferencePage {
+  title: string;
+  md: string; // markdown-ish text, rendered read-only
+}
+
 /** How a viewer renders a mat — local preference, never synced (SPEC §11).
  *  'fit' (region mats): the outline shrink-wraps the contents (v4 §2). */
 export type ViewMode = 'auto' | 'stack' | 'fan' | 'collapsed' | 'fit';
@@ -162,6 +171,8 @@ export type MatEntity = Base<
     groups?: string[];
     /** template-defined quick actions; meaningful on the root mat */
     macros?: MacroDef[];
+    /** read-only reference/rules pages; meaningful on the root mat (SPEC §13) */
+    reference?: ReferencePage[];
     /** which kinds render stacked in stack view; others sit loose at their
      *  own positions on the mat (v4 §2). Default: everything stacks. */
     stackKinds?: EntityKind[];

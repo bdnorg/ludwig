@@ -150,8 +150,19 @@ are referenced as `asset:<id>`.
       `origin: [x, y]` (gamebox.ts) so a layout can declare the margin it
       needs instead of the loader special-casing origins per game; catan's
       manifest now sets `origin: [280, 60]` (matches catanTable()'s call).
-- [ ] Reference-pages panel: manifest `reference` pages need a read-only
-      viewer (store them on the root mat config; simple modal like Help).
+- [x] Reference-pages panel — DONE: `reference?: ReferencePage[]` added to
+      mat config (`types.ts`); `buildGamebox` returns a manifest's pages
+      alongside macros, and the new `rootGameboxMutation` (gamebox.ts) stamps
+      macros/reference onto the root mat as one pure mutation — `setRootMacros`
+      in templates.ts now delegates to it, so both the gamebox load path and
+      the code templates share the same root-config plumbing. New
+      `ReferencePages.svelte` modal (page-picker tabs only when >1 page, plain
+      text interpolation — never `{@html}` — since an uploaded box's prose is
+      untrusted) opens from a toolbar button that only renders when the root
+      mat actually has pages. Euchre's shipped manifest already declared a
+      "Quick rules" reference page (unused until now) — it's the exemplar;
+      `gamebox.test.ts` covers pages landing on root config via both a
+      synthetic manifest and euchre's real one.
 - [ ] Author new pure-config gameboxes, one per session: cribbage, chess, go
       (needs infinite stone supply mats — `supply: 'infinite'` exists),
       Scrabble, Texas Hold'em, Pandemic, RoboRally, Codenames (per-role
