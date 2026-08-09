@@ -55,6 +55,12 @@ export interface GameboxManifest {
   /** asset registry: id → url. Entities reference "asset:<id>" in any image
    *  field; the builder resolves them so urls live in exactly one place. */
   assets?: Record<string, string>;
+  /** Preferred instantiation origin, [x, y]. Layouts anchored at [0, 0] with
+   *  furniture to the left/above (e.g. a scoreboard at negative x) need more
+   *  margin than buildGamebox's built-in default — declare it here instead
+   *  of the loader special-casing origins per game. An explicit `origin`
+   *  argument to buildGamebox still wins over this. */
+  origin?: [number, number];
   macros?: MacroDef[];
   reference?: GameboxReferencePage[];
   layout: LayoutItem[];
@@ -82,6 +88,8 @@ export function validateGamebox(raw: unknown): GameboxManifest {
   if (m.assets && typeof m.assets !== 'object') bad('"assets" must be an id → url map');
   for (const [k, v] of Object.entries(m.assets ?? {}))
     if (typeof v !== 'string') bad(`asset "${k}" must be a url string`);
+  if (m.origin !== undefined && (!Array.isArray(m.origin) || m.origin.length !== 2 || !m.origin.every((n) => Number.isFinite(n))))
+    bad('"origin" must be [x, y]');
 
   const matLabels = new Set<string>();
   let entities = 0;
@@ -130,6 +138,16 @@ export function validateGamebox(raw: unknown): GameboxManifest {
   return m;
 }
 
+/** Uploaded manifests travel alone (no directory upload), so any relative
+ *  asset path would 404: assets must be absolute http(s) URLs or `data:`
+ *  URIs. Built-in packages are exempt — the lobby fetcher absolutizes their
+ *  relative asset paths against the package dir before this ever runs. */
+export function assertPortableAssets(m: GameboxManifest): void {
+  for (const [k, v] of Object.entries(m.assets ?? {}))
+    if (!/^https?:\/\//.test(v) && !v.startsWith('data:'))
+      bad(`asset "${k}" must be an absolute http(s) URL or a data: URI (got "${v}")`);
+}
+
 // ---- building --------------------------------------------------------------
 
 /** Resolve "asset:<id>" references against the manifest's registry. */
@@ -141,14 +159,19 @@ function resolveAsset(assets: Record<string, string>, v: string | null | undefin
   return url;
 }
 
+const DEFAULT_ORIGIN: Pos = { x: 60, y: 60, z: 1, rot: 0 };
+
 /** Instantiate a validated manifest into mutations for a fresh table.
- *  Layout coordinates are offset by `origin`. Macros come back separately —
- *  they belong on the root mat (behavior is configuration, SPEC §15). */
+ *  Layout coordinates are offset by `origin` — an explicit argument wins,
+ *  otherwise the manifest's own `origin` (for layouts that need more
+ *  margin), otherwise a small built-in default. Macros come back separately
+ *  — they belong on the root mat (behavior is configuration, SPEC §15). */
 export function buildGamebox(
   ctx: OpCtx,
   m: GameboxManifest,
-  origin: Pos = { x: 60, y: 60, z: 1, rot: 0 },
+  origin?: Pos,
 ): { muts: Mutation[]; macros: MacroDef[] } {
+  origin ??= m.origin ? { x: m.origin[0], y: m.origin[1], z: 1, rot: 0 } : DEFAULT_ORIGIN;
   const assets = m.assets ?? {};
   const muts: Mutation[] = [];
   const matByLabel = new Map<string, MatEntity>();

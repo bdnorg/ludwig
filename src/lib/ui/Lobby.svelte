@@ -1,8 +1,11 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { newRoomCode } from '../roomcode';
   import { listPlayers, loadPlayer, newPlayer, savePlayer } from '../state/player';
-  import { deleteTable, listTables, renameTable } from '../state/persist';
-  import { requestImport, requestTemplate, TEMPLATES, type TemplateId } from '../state/templates';
+  import { deleteTable, download, listTables, renameTable } from '../state/persist';
+  import { requestGamebox, requestImport, requestTemplate, TEMPLATES, type TemplateId } from '../state/templates';
+  import { fetchGameboxGallery, type GameboxGalleryEntry } from '../state/gameboxGallery';
+  import { assertPortableAssets, validateGamebox } from '../model/gamebox';
 
   let importInput: HTMLInputElement;
   async function importTemplate(file: File) {
@@ -17,11 +20,58 @@
     }
   }
 
+  let gameboxInput: HTMLInputElement;
+  async function uploadGamebox(file: File) {
+    try {
+      const manifest = validateGamebox(JSON.parse(await file.text()));
+      assertPortableAssets(manifest);
+      persistName();
+      requestGamebox(manifest);
+      location.hash = `#/t/${newRoomCode()}`;
+    } catch (err) {
+      alert(`Gamebox upload failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  function downloadBox(entry: GameboxGalleryEntry) {
+    download(`${entry.id}.manifest.json`, entry.manifest);
+  }
+
   let roster = $state(listPlayers());
   let player = $state(loadPlayer());
   let joinCode = $state('');
-  let template = $state<TemplateId>('sandbox');
   let tables = $state(listTables());
+
+  // M18: built-in gamebox packages, fetched from public/gameboxes/. A box
+  // supersedes the code template of the same id in the gallery (once it has
+  // loaded) so the same game never appears twice; anything fetch-only
+  // (euchre) is simply appended. Until the fetch resolves, the code
+  // template fills in — same table either way.
+  let boxes = $state<GameboxGalleryEntry[]>([]);
+  onMount(() => {
+    fetchGameboxGallery().then((b) => (boxes = b));
+  });
+
+  type Selection = { kind: 'template'; id: TemplateId } | { kind: 'box'; entry: GameboxGalleryEntry };
+  let selection = $state<Selection>({ kind: 'template', id: 'sandbox' });
+
+  // if the box gallery finishes loading after the player already picked a
+  // template that a box now supersedes, follow the switch so the highlight
+  // (and Start button) still points at something visible
+  $effect(() => {
+    const sel = selection;
+    if (sel.kind !== 'template') return;
+    const box = boxes.find((b) => b.id === sel.id);
+    if (box) selection = { kind: 'box', entry: box };
+  });
+
+  let gallery = $derived.by(() => {
+    const boxed = new Set(boxes.map((b) => b.id));
+    const items: ({ kind: 'template'; id: TemplateId; name: string; blurb: string } | { kind: 'box'; entry: GameboxGalleryEntry })[] = [];
+    for (const t of TEMPLATES) if (!boxed.has(t.id)) items.push({ kind: 'template', id: t.id, name: t.name, blurb: t.blurb });
+    for (const b of boxes) items.push({ kind: 'box', entry: b });
+    return items;
+  });
 
   function pickPlayer(id: string) {
     const p = id === 'new' ? newPlayer() : roster.find((r) => r.id === id);
@@ -62,7 +112,8 @@
 
   function createTable() {
     persistName();
-    requestTemplate(template);
+    if (selection.kind === 'box') requestGamebox(selection.entry.manifest);
+    else requestTemplate(selection.id);
     location.hash = `#/t/${newRoomCode()}`;
   }
 
@@ -102,11 +153,27 @@
   </div>
 
   <div class="gallery">
-    {#each TEMPLATES as t (t.id)}
-      <button class="tmpl" class:selected={template === t.id} onclick={() => (template = t.id)}>
-        <strong>{t.name}</strong>
-        <span>{t.blurb}</span>
-      </button>
+    {#each gallery as item (item.kind === 'template' ? `t:${item.id}` : `b:${item.entry.id}`)}
+      {#if item.kind === 'template'}
+        <button
+          class="tmpl"
+          class:selected={selection.kind === 'template' && selection.id === item.id}
+          onclick={() => (selection = { kind: 'template', id: item.id })}
+        >
+          <strong>{item.name}</strong>
+          <span>{item.blurb}</span>
+        </button>
+      {:else}
+        <div class="tmpl box" class:selected={selection.kind === 'box' && selection.entry.id === item.entry.id}>
+          <button class="boxpick" onclick={() => (selection = { kind: 'box', entry: item.entry })}>
+            <strong>{item.entry.name}</strong>
+            <span>{item.entry.blurb}</span>
+          </button>
+          <button class="tinybtn" title="download {item.entry.name} manifest.json" onclick={() => downloadBox(item.entry)}>
+            ⇩
+          </button>
+        </div>
+      {/if}
     {/each}
     <button
       class="tmpl"
@@ -125,6 +192,26 @@
       onchange={(e) => {
         const f = e.currentTarget.files?.[0];
         if (f) importTemplate(f);
+        e.currentTarget.value = '';
+      }}
+    />
+    <button
+      class="tmpl"
+      disabled={!player.name.trim()}
+      title="load a single gamebox manifest.json — its assets must be absolute URLs or data: URIs"
+      onclick={() => gameboxInput.click()}
+    >
+      <strong>⇧ Upload a gamebox…</strong>
+      <span>A pure-config manifest.json exported from another table's gallery.</span>
+    </button>
+    <input
+      type="file"
+      accept="application/json"
+      bind:this={gameboxInput}
+      hidden
+      onchange={(e) => {
+        const f = e.currentTarget.files?.[0];
+        if (f) uploadGamebox(f);
         e.currentTarget.value = '';
       }}
     />
@@ -219,6 +306,26 @@
   .tmpl.selected {
     border-color: var(--accent);
     outline: 1px solid var(--accent);
+  }
+  .tmpl.box {
+    flex-direction: row;
+    align-items: center;
+    padding: 0.15rem 0.4rem 0.15rem 0;
+    gap: 0.2rem;
+  }
+  .boxpick {
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    flex: 1;
+    padding: 0.4rem 0.4rem 0.4rem 0.8rem;
+    background: none;
+    border: none;
+  }
+  .boxpick span {
+    font-size: 0.75rem;
+    color: var(--muted);
   }
   .mytables {
     display: flex;

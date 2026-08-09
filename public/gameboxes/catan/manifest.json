@@ -3,6 +3,10 @@
   "name": "Settlers of Catan (beginner board)",
   "blurb": "Snap-slot island, finite pieces, resources.",
   "version": "1.0.0",
+  "origin": [
+    280,
+    60
+  ],
   "layout": [
     {
       "type": "mat",

@@ -161,7 +161,8 @@ export function deleteTable(room: string): void {
     localStorage.removeItem(k);
 }
 
-function download(name: string, data: unknown): void {
+/** Generic browser-download-a-file helper (also used for gamebox export). */
+export function download(name: string, data: unknown): void {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);

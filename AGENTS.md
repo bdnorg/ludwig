@@ -132,9 +132,24 @@ are referenced as `asset:<id>`.
       is real crypto RNG on each build). Code templates (dominion.ts/catan.ts)
       are untouched and still power the lobby's template gallery; retiring
       them is a later, separate batch per the design call above.
-- [ ] Lobby: fetch `gameboxes/index.json` + each manifest (name/blurb) into
-      the template gallery via `requestGamebox()`; upload-a-manifest.json
-      from disk (validateGamebox, alert on error); download-any-box link.
+- [x] Lobby: fetch `gameboxes/index.json` + each manifest into the template
+      gallery — DONE: `state/gameboxGallery.ts` fetches index + manifests
+      (relative to Vite's `BASE_URL`, absolutizing relative asset urls
+      against each package dir), `Lobby.svelte` merges them into the
+      gallery — a fetched box supersedes the code-template entry of the
+      same id (dedup by id; cards52/dominion/catan superseded, euchre
+      appended, sandbox untouched) — clicking one calls `requestGamebox()`;
+      "Upload a gamebox…" validates a single manifest.json from disk
+      (`validateGamebox` + new `assertPortableAssets`, alert on error, load
+      nothing on failure); every gallery box has a ⇩ download link
+      (`persist.ts`'s `download()` helper, now exported). Bug found & fixed
+      along the way: real instantiation (not just gamebox.test.ts's
+      structural checks) exposed that catan's manifest — furniture at
+      negative x/y relative to its [0,0] anchor — went off-screen under
+      `buildGamebox`'s small default origin; added an optional manifest
+      `origin: [x, y]` (gamebox.ts) so a layout can declare the margin it
+      needs instead of the loader special-casing origins per game; catan's
+      manifest now sets `origin: [280, 60]` (matches catanTable()'s call).
 - [ ] Reference-pages panel: manifest `reference` pages need a read-only
       viewer (store them on the root mat config; simple modal like Help).
 - [ ] Author new pure-config gameboxes, one per session: cribbage, chess, go

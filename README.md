@@ -24,9 +24,13 @@ node scripts/p2ptest.mjs   # 2-browser P2P integration test (needs dev server + 
 
 ## Play
 
-Open the app, enter a name, pick a template (sandbox, 52-card deck,
-Dominion, Settlers of Catan — or import any exported table file), start a
-table, and send the invite link to friends. The lobby remembers every player this browser has used — pick one
+Open the app, enter a name, pick a template (sandbox, or a gamebox — 52-card
+deck, Euchre, Dominion, Settlers of Catan — fetched from `public/gameboxes/`;
+or import any exported table file), start a table, and send the invite link
+to friends. Each gamebox in the gallery has a ⇩ download link for its
+`manifest.json`, and "Upload a gamebox…" loads any single manifest from disk
+(its assets must be absolute URLs or `data:` URIs — a single-file upload
+can't carry a directory of images alongside it). The lobby remembers every player this browser has used — pick one
 from the "Playing as" dropdown (each tab can sit at the table as a
 different player). Saved tables reappear under "My tables" in the lobby — rename,
 reopen, or delete them there. Use

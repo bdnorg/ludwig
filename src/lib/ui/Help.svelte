@@ -70,6 +70,13 @@
     (see “My tables” in the lobby) — and a table exported to a file doubles as a template anyone
     can import.
   </p>
+  <p>
+    Games in the lobby gallery are <em>gameboxes</em> — plain-config manifest files, no code.
+    Each one has a ⇩ download link so you can share or edit its <code>manifest.json</code>; "Upload
+    a gamebox…" loads one back in. An uploaded manifest travels alone (no folder of images comes
+    with it), so its assets must be absolute URLs or <code>data:</code> URIs — the built-in games
+    are exempt since their images ship alongside them.
+  </p>
 
   {#each sections as s (s.title)}
     <h2>{s.title}</h2>

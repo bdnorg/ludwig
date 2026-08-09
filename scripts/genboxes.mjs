@@ -392,6 +392,10 @@ writeBox('catan', {
   name: 'Settlers of Catan (beginner board)',
   blurb: 'Snap-slot island, finite pieces, resources.',
   version: '1.0.0',
+  // the scoreboard/note sit left of the island (negative x) and the dice
+  // sit above it (negative y) — mirrors catanTable()'s own origin (catan.ts),
+  // which buildGamebox's small built-in default doesn't leave room for.
+  origin: [280, 60],
   layout: catanLayout,
   macros: [
     {
