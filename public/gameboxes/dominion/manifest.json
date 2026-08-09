@@ -1,0 +1,522 @@
+{
+  "gamebox": 1,
+  "name": "Dominion (base, first game)",
+  "blurb": "Full supply, kingdom, and starter decks.",
+  "version": "1.0.0",
+  "layout": [
+    {
+      "type": "cardset",
+      "at": [
+        0,
+        0
+      ],
+      "spec": {
+        "name": "Copper",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Copper",
+            "body": "$1",
+            "sub": "$0 · Treasure",
+            "color": "#a5741a",
+            "count": 32
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        0,
+        134
+      ],
+      "spec": {
+        "name": "Silver",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Silver",
+            "body": "$2",
+            "sub": "$3 · Treasure",
+            "color": "#a5741a",
+            "count": 40
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        0,
+        268
+      ],
+      "spec": {
+        "name": "Gold",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Gold",
+            "body": "$3",
+            "sub": "$6 · Treasure",
+            "color": "#a5741a",
+            "count": 30
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        100,
+        0
+      ],
+      "spec": {
+        "name": "Estate",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Estate",
+            "body": "1 VP",
+            "sub": "$2 · Victory",
+            "color": "#2e7d46",
+            "count": 12
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        100,
+        134
+      ],
+      "spec": {
+        "name": "Duchy",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Duchy",
+            "body": "3 VP",
+            "sub": "$5 · Victory",
+            "color": "#2e7d46",
+            "count": 12
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        100,
+        268
+      ],
+      "spec": {
+        "name": "Province",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Province",
+            "body": "6 VP",
+            "sub": "$8 · Victory",
+            "color": "#2e7d46",
+            "count": 12
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        200,
+        268
+      ],
+      "spec": {
+        "name": "Curse",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Curse",
+            "body": "−1 VP",
+            "sub": "$0 · Victory",
+            "color": "#7d3fa0",
+            "count": 30
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        300,
+        0
+      ],
+      "spec": {
+        "name": "Cellar",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Cellar",
+            "body": "+1 Action\nDiscard any number of cards, then draw that many.",
+            "sub": "$2 · Action",
+            "color": "#4a4f58",
+            "count": 10
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        400,
+        0
+      ],
+      "spec": {
+        "name": "Moat",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Moat",
+            "body": "+2 Cards\nWhen another player plays an Attack, you may reveal this to be unaffected.",
+            "sub": "$2 · Action–Reaction",
+            "color": "#4a4f58",
+            "count": 10
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        500,
+        0
+      ],
+      "spec": {
+        "name": "Merchant",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Merchant",
+            "body": "+1 Card, +1 Action\nThe first time you play a Silver this turn, +$1.",
+            "sub": "$3 · Action",
+            "color": "#4a4f58",
+            "count": 10
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        600,
+        0
+      ],
+      "spec": {
+        "name": "Village",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Village",
+            "body": "+1 Card, +2 Actions",
+            "sub": "$3 · Action",
+            "color": "#4a4f58",
+            "count": 10
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        700,
+        0
+      ],
+      "spec": {
+        "name": "Workshop",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Workshop",
+            "body": "Gain a card costing up to $4.",
+            "sub": "$3 · Action",
+            "color": "#4a4f58",
+            "count": 10
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        300,
+        134
+      ],
+      "spec": {
+        "name": "Militia",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Militia",
+            "body": "+$2\nEach other player discards down to 3 cards in hand.",
+            "sub": "$4 · Action–Attack",
+            "color": "#4a4f58",
+            "count": 10
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        400,
+        134
+      ],
+      "spec": {
+        "name": "Remodel",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Remodel",
+            "body": "Trash a card from your hand. Gain a card costing up to $2 more than it.",
+            "sub": "$4 · Action",
+            "color": "#4a4f58",
+            "count": 10
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        500,
+        134
+      ],
+      "spec": {
+        "name": "Smithy",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Smithy",
+            "body": "+3 Cards",
+            "sub": "$4 · Action",
+            "color": "#4a4f58",
+            "count": 10
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        600,
+        134
+      ],
+      "spec": {
+        "name": "Market",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Market",
+            "body": "+1 Card, +1 Action, +1 Buy, +$1",
+            "sub": "$5 · Action",
+            "color": "#4a4f58",
+            "count": 10
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        700,
+        134
+      ],
+      "spec": {
+        "name": "Mine",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Mine",
+            "body": "Trash a Treasure from your hand. Gain a Treasure to your hand costing up to $3 more than it.",
+            "sub": "$5 · Action",
+            "color": "#4a4f58",
+            "count": 10
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        100,
+        576.2
+      ],
+      "spec": {
+        "name": "Starter deck 1",
+        "facePolicy": "down",
+        "cards": [
+          {
+            "title": "Copper",
+            "body": "$1",
+            "sub": "$0 · Treasure",
+            "color": "#a5741a",
+            "count": 7
+          },
+          {
+            "title": "Estate",
+            "body": "1 VP",
+            "sub": "$2 · Victory",
+            "color": "#2e7d46",
+            "count": 3
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        260,
+        576.2
+      ],
+      "spec": {
+        "name": "Starter deck 2",
+        "facePolicy": "down",
+        "cards": [
+          {
+            "title": "Copper",
+            "body": "$1",
+            "sub": "$0 · Treasure",
+            "color": "#a5741a",
+            "count": 7
+          },
+          {
+            "title": "Estate",
+            "body": "1 VP",
+            "sub": "$2 · Victory",
+            "color": "#2e7d46",
+            "count": 3
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        420,
+        576.2
+      ],
+      "spec": {
+        "name": "Starter deck 3",
+        "facePolicy": "down",
+        "cards": [
+          {
+            "title": "Copper",
+            "body": "$1",
+            "sub": "$0 · Treasure",
+            "color": "#a5741a",
+            "count": 7
+          },
+          {
+            "title": "Estate",
+            "body": "1 VP",
+            "sub": "$2 · Victory",
+            "color": "#2e7d46",
+            "count": 3
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        580,
+        576.2
+      ],
+      "spec": {
+        "name": "Starter deck 4",
+        "facePolicy": "down",
+        "cards": [
+          {
+            "title": "Copper",
+            "body": "$1",
+            "sub": "$0 · Treasure",
+            "color": "#a5741a",
+            "count": 7
+          },
+          {
+            "title": "Estate",
+            "body": "1 VP",
+            "sub": "$2 · Victory",
+            "color": "#2e7d46",
+            "count": 3
+          }
+        ]
+      }
+    },
+    {
+      "type": "mat",
+      "at": [
+        200,
+        0
+      ],
+      "opts": {
+        "label": "Trash",
+        "placement": {
+          "type": "stack"
+        },
+        "faceDefault": "up",
+        "visibility": {
+          "faces": "public"
+        }
+      }
+    },
+    {
+      "type": "mat",
+      "at": [
+        300,
+        388.6
+      ],
+      "opts": {
+        "label": "Play area",
+        "placement": {
+          "type": "grid",
+          "grid": {
+            "size": 40
+          }
+        },
+        "faceDefault": "keep",
+        "size": {
+          "w": 472,
+          "h": 160
+        },
+        "groups": [
+          "play"
+        ]
+      }
+    },
+    {
+      "type": "note",
+      "at": [
+        820,
+        0
+      ],
+      "text": "SETUP: each player takes a starter deck (7 Copper, 3 Estate), shuffles (right-click), and draws 5 to hand (double-click ×5).\n\nBuy: drag a card off a supply pile to your discard. Game ends when Provinces (or any 3 piles) run out."
+    }
+  ]
+}

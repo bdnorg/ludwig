@@ -1,0 +1,1238 @@
+{
+  "gamebox": 1,
+  "name": "Settlers of Catan (beginner board)",
+  "blurb": "Snap-slot island, finite pieces, resources.",
+  "version": "1.0.0",
+  "layout": [
+    {
+      "type": "mat",
+      "at": [
+        0,
+        0
+      ],
+      "opts": {
+        "label": "Island",
+        "placement": {
+          "type": "slots",
+          "generate": {
+            "kind": "hexgrid",
+            "radius": 2,
+            "size": 88,
+            "classes": {
+              "cell": [
+                "tile",
+                "chit",
+                "robber"
+              ],
+              "vertex": [
+                "building"
+              ],
+              "edge": [
+                "road"
+              ]
+            }
+          }
+        },
+        "size": {
+          "w": 500,
+          "h": 392
+        },
+        "locked": true
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        118,
+        20
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#8a8f98",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        206,
+        20
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#82c24a",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        294,
+        20
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#2e7a3c",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        74,
+        86
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#d9b032",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        162,
+        86
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#b4552e",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        250,
+        86
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#82c24a",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        338,
+        86
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#b4552e",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        30,
+        152
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#d9b032",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        118,
+        152
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#2e7a3c",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        206,
+        152
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#d8c48e",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        294,
+        152
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#2e7a3c",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        382,
+        152
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#8a8f98",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        74,
+        218
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#2e7a3c",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        162,
+        218
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#8a8f98",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        250,
+        218
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#d9b032",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        338,
+        218
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#82c24a",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        118,
+        284
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#b4552e",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        206,
+        284
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#d9b032",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        294,
+        284
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "hex",
+        "color": "#82c24a",
+        "label": "",
+        "size": 88,
+        "tags": [
+          "tile"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        149,
+        51
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "10",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        237,
+        51
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "2",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        325,
+        51
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "9",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        105,
+        117
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "12",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        193,
+        117
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "6",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        281,
+        117
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "4",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        369,
+        117
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "10",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        61,
+        183
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "9",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        149,
+        183
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "11",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        235,
+        181
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#33343b",
+        "label": "☠",
+        "size": 30,
+        "tags": [
+          "robber"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        325,
+        183
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "3",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        413,
+        183
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "8",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        105,
+        249
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "8",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        193,
+        249
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "3",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        281,
+        249
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "4",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        369,
+        249
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "5",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        149,
+        315
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "5",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        237,
+        315
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "6",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "token",
+      "at": [
+        325,
+        315
+      ],
+      "in": "Island",
+      "config": {
+        "shape": "disc",
+        "color": "#f0ece1",
+        "label": "11",
+        "size": 26,
+        "tags": [
+          "chit"
+        ]
+      }
+    },
+    {
+      "type": "mat",
+      "at": [
+        0,
+        432
+      ],
+      "opts": {
+        "label": "Red pieces",
+        "placement": {
+          "type": "grid",
+          "grid": {
+            "size": 40
+          }
+        },
+        "faceDefault": "keep",
+        "size": {
+          "w": 180,
+          "h": 100
+        }
+      }
+    },
+    {
+      "type": "pile",
+      "at": [
+        16,
+        40
+      ],
+      "in": "Red pieces",
+      "token": {
+        "shape": "square",
+        "color": "#c0392b",
+        "label": "",
+        "size": 22,
+        "tags": [
+          "building"
+        ]
+      },
+      "count": 5
+    },
+    {
+      "type": "pile",
+      "at": [
+        70,
+        36
+      ],
+      "in": "Red pieces",
+      "token": {
+        "shape": "square",
+        "color": "#c0392b",
+        "label": "C",
+        "size": 30,
+        "tags": [
+          "building"
+        ]
+      },
+      "count": 4
+    },
+    {
+      "type": "pile",
+      "at": [
+        124,
+        45
+      ],
+      "in": "Red pieces",
+      "token": {
+        "shape": "bar",
+        "color": "#c0392b",
+        "label": "",
+        "size": 36,
+        "tags": [
+          "road"
+        ]
+      },
+      "count": 15
+    },
+    {
+      "type": "mat",
+      "at": [
+        200,
+        432
+      ],
+      "opts": {
+        "label": "Blue pieces",
+        "placement": {
+          "type": "grid",
+          "grid": {
+            "size": 40
+          }
+        },
+        "faceDefault": "keep",
+        "size": {
+          "w": 180,
+          "h": 100
+        }
+      }
+    },
+    {
+      "type": "pile",
+      "at": [
+        16,
+        40
+      ],
+      "in": "Blue pieces",
+      "token": {
+        "shape": "square",
+        "color": "#2e6da4",
+        "label": "",
+        "size": 22,
+        "tags": [
+          "building"
+        ]
+      },
+      "count": 5
+    },
+    {
+      "type": "pile",
+      "at": [
+        70,
+        36
+      ],
+      "in": "Blue pieces",
+      "token": {
+        "shape": "square",
+        "color": "#2e6da4",
+        "label": "C",
+        "size": 30,
+        "tags": [
+          "building"
+        ]
+      },
+      "count": 4
+    },
+    {
+      "type": "pile",
+      "at": [
+        124,
+        45
+      ],
+      "in": "Blue pieces",
+      "token": {
+        "shape": "bar",
+        "color": "#2e6da4",
+        "label": "",
+        "size": 36,
+        "tags": [
+          "road"
+        ]
+      },
+      "count": 15
+    },
+    {
+      "type": "mat",
+      "at": [
+        400,
+        432
+      ],
+      "opts": {
+        "label": "White pieces",
+        "placement": {
+          "type": "grid",
+          "grid": {
+            "size": 40
+          }
+        },
+        "faceDefault": "keep",
+        "size": {
+          "w": 180,
+          "h": 100
+        }
+      }
+    },
+    {
+      "type": "pile",
+      "at": [
+        16,
+        40
+      ],
+      "in": "White pieces",
+      "token": {
+        "shape": "square",
+        "color": "#e8e6e0",
+        "label": "",
+        "size": 22,
+        "tags": [
+          "building"
+        ]
+      },
+      "count": 5
+    },
+    {
+      "type": "pile",
+      "at": [
+        70,
+        36
+      ],
+      "in": "White pieces",
+      "token": {
+        "shape": "square",
+        "color": "#e8e6e0",
+        "label": "C",
+        "size": 30,
+        "tags": [
+          "building"
+        ]
+      },
+      "count": 4
+    },
+    {
+      "type": "pile",
+      "at": [
+        124,
+        45
+      ],
+      "in": "White pieces",
+      "token": {
+        "shape": "bar",
+        "color": "#e8e6e0",
+        "label": "",
+        "size": 36,
+        "tags": [
+          "road"
+        ]
+      },
+      "count": 15
+    },
+    {
+      "type": "mat",
+      "at": [
+        600,
+        432
+      ],
+      "opts": {
+        "label": "Orange pieces",
+        "placement": {
+          "type": "grid",
+          "grid": {
+            "size": 40
+          }
+        },
+        "faceDefault": "keep",
+        "size": {
+          "w": 180,
+          "h": 100
+        }
+      }
+    },
+    {
+      "type": "pile",
+      "at": [
+        16,
+        40
+      ],
+      "in": "Orange pieces",
+      "token": {
+        "shape": "square",
+        "color": "#d9822b",
+        "label": "",
+        "size": 22,
+        "tags": [
+          "building"
+        ]
+      },
+      "count": 5
+    },
+    {
+      "type": "pile",
+      "at": [
+        70,
+        36
+      ],
+      "in": "Orange pieces",
+      "token": {
+        "shape": "square",
+        "color": "#d9822b",
+        "label": "C",
+        "size": 30,
+        "tags": [
+          "building"
+        ]
+      },
+      "count": 4
+    },
+    {
+      "type": "pile",
+      "at": [
+        124,
+        45
+      ],
+      "in": "Orange pieces",
+      "token": {
+        "shape": "bar",
+        "color": "#d9822b",
+        "label": "",
+        "size": 36,
+        "tags": [
+          "road"
+        ]
+      },
+      "count": 15
+    },
+    {
+      "type": "cardset",
+      "at": [
+        0,
+        572
+      ],
+      "spec": {
+        "name": "Wood",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Wood",
+            "body": "",
+            "sub": "Resource",
+            "color": "#2e7a3c",
+            "count": 19
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        110,
+        572
+      ],
+      "spec": {
+        "name": "Brick",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Brick",
+            "body": "",
+            "sub": "Resource",
+            "color": "#b4552e",
+            "count": 19
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        220,
+        572
+      ],
+      "spec": {
+        "name": "Wool",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Wool",
+            "body": "",
+            "sub": "Resource",
+            "color": "#82c24a",
+            "count": 19
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        330,
+        572
+      ],
+      "spec": {
+        "name": "Grain",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Grain",
+            "body": "",
+            "sub": "Resource",
+            "color": "#d9b032",
+            "count": 19
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        440,
+        572
+      ],
+      "spec": {
+        "name": "Ore",
+        "facePolicy": "up",
+        "shuffle": false,
+        "cards": [
+          {
+            "title": "Ore",
+            "body": "",
+            "sub": "Resource",
+            "color": "#8a8f98",
+            "count": 19
+          }
+        ]
+      }
+    },
+    {
+      "type": "cardset",
+      "at": [
+        580,
+        572
+      ],
+      "spec": {
+        "name": "Development",
+        "facePolicy": "down",
+        "cards": [
+          {
+            "title": "Knight",
+            "body": "Move the robber. Steal 1 card from a player next to it.",
+            "sub": "Development",
+            "count": 14
+          },
+          {
+            "title": "Victory Point",
+            "body": "Worth 1 VP. Keep hidden until the game ends.",
+            "sub": "Development",
+            "count": 5
+          },
+          {
+            "title": "Road Building",
+            "body": "Place 2 free roads.",
+            "sub": "Development",
+            "count": 2
+          },
+          {
+            "title": "Year of Plenty",
+            "body": "Take any 2 resources from the bank.",
+            "sub": "Development",
+            "count": 2
+          },
+          {
+            "title": "Monopoly",
+            "body": "Name a resource. All players give you theirs.",
+            "sub": "Development",
+            "count": 2
+          }
+        ]
+      }
+    },
+    {
+      "type": "mat",
+      "at": [
+        540,
+        40
+      ],
+      "opts": {
+        "label": "Tiles",
+        "placement": {
+          "type": "stack"
+        }
+      }
+    },
+    {
+      "type": "mat",
+      "at": [
+        650,
+        40
+      ],
+      "opts": {
+        "label": "Chits",
+        "placement": {
+          "type": "stack"
+        }
+      }
+    },
+    {
+      "type": "dice",
+      "at": [
+        540,
+        -60
+      ],
+      "value": 3
+    },
+    {
+      "type": "dice",
+      "at": [
+        586,
+        -60
+      ],
+      "value": 4
+    },
+    {
+      "type": "scoreboard",
+      "at": [
+        -210,
+        0
+      ],
+      "label": "Victory points"
+    },
+    {
+      "type": "note",
+      "at": [
+        -210,
+        120
+      ],
+      "text": "SETUP: claim a color mat; drag pieces off its stacks (one comes off at a time). Place 2 settlements + 2 roads each — they snap to corners and edges. \"Random island\" (top left) re-lays tiles and chits; swap the desert chit off by hand.\n\nTURN: roll (double-click dice), collect resources, trade, build. Robber moves on a 7. First to 10 VP wins."
+    }
+  ],
+  "macros": [
+    {
+      "id": "random-island",
+      "label": "Random island",
+      "steps": [
+        {
+          "op": "move",
+          "from": "Island",
+          "to": "Chits",
+          "where": {
+            "tag": "chit"
+          }
+        },
+        {
+          "op": "move",
+          "from": "Island",
+          "to": "Tiles",
+          "where": {
+            "tag": "tile"
+          }
+        },
+        {
+          "op": "shuffle",
+          "from": "Tiles"
+        },
+        {
+          "op": "deal-to-slots",
+          "from": "Tiles",
+          "to": "Island"
+        },
+        {
+          "op": "shuffle",
+          "from": "Chits"
+        },
+        {
+          "op": "deal-to-slots",
+          "from": "Chits",
+          "to": "Island"
+        }
+      ]
+    }
+  ]
+}

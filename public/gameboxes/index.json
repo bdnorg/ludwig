@@ -1,6 +1,8 @@
 {
   "gameboxes": [
     "cards52",
-    "euchre"
+    "euchre",
+    "dominion",
+    "catan"
   ]
 }
