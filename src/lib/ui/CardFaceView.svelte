@@ -10,7 +10,12 @@
 
 {#if face}
   <div class="face front" style:width="{w}px" style:height="{h}px" style:color={face.color ?? '#222'}>
-    {#if face.image}
+    {#if face.image && (face.title || face.body)}
+      <span class="title">{face.title}</span>
+      <img class="art" src={face.image} alt="" draggable="false" />
+      <span class="body arted">{face.body}</span>
+      {#if face.sub}<span class="sub">{face.sub}</span>{/if}
+    {:else if face.image}
       <img src={face.image} alt={face.title ?? face.corner ?? 'card'} draggable="false" />
     {:else if face.title || face.body}
       <span class="title">{face.title}</span>
@@ -53,6 +58,21 @@
     height: 100%;
     object-fit: cover;
     border-radius: 5px;
+  }
+  /* title + art + text composite (e.g. Dominion): art is a strip between
+     the title bar and the rules text, not the whole face */
+  img.art {
+    position: absolute;
+    top: 17px;
+    left: 5px;
+    right: 5px;
+    width: calc(100% - 10px);
+    height: 22px;
+    border-radius: 3px;
+  }
+  .body.arted {
+    top: 41px;
+    font-size: 0.38rem;
   }
   .corner {
     position: absolute;

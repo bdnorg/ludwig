@@ -116,14 +116,34 @@ const D_CURSE = '#7d3fa0';
 const CARD_W = 72;
 const CARD_H = 100;
 
+// simple generated card art: one emblem SVG per card (soft wash of the
+// card's color + an emoji glyph), shipped in the package's art/ dir and
+// referenced through the manifest's asset registry — these are the first
+// real assets, so they also exercise the lobby's absolutize-on-fetch path.
+const D_ART = {
+  Copper: '🥉', Silver: '🥈', Gold: '🥇',
+  Estate: '🏠', Duchy: '🏰', Province: '👑', Curse: '💀',
+  Cellar: '🧺', Moat: '🛡️', Merchant: '💰', Village: '🏘️', Workshop: '🛠️',
+  Militia: '🪖', Remodel: '🔨', Smithy: '🔥', Market: '🛒', Mine: '💎',
+};
+const dArtId = (name) => name.toLowerCase();
+const emblemSvg = (color, glyph) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 40">` +
+  `<rect width="96" height="40" fill="${color}" opacity="0.18"/>` +
+  `<text x="48" y="30" font-size="26" text-anchor="middle">${glyph}</text>` +
+  `</svg>\n`;
+
 const dMoney = (name, worth, cost, count) => ({
   title: name, body: worth, sub: `$${cost} · Treasure`, color: D_TREASURE, count,
+  image: `asset:${dArtId(name)}`,
 });
 const dVp = (name, points, cost, count, color = D_VICTORY) => ({
   title: name, body: points, sub: `$${cost} · Victory`, color, count,
+  image: `asset:${dArtId(name)}`,
 });
 const dAction = (name, body, cost, type = 'Action') => ({
   title: name, body, sub: `$${cost} · ${type}`, color: D_ACTION, count: 10,
+  image: `asset:${dArtId(name)}`,
 });
 
 const KINGDOM = [
@@ -195,11 +215,24 @@ const dominionLayout = [
   },
 ];
 
+const dArtColor = (name) =>
+  ['Copper', 'Silver', 'Gold'].includes(name) ? D_TREASURE
+  : ['Estate', 'Duchy', 'Province'].includes(name) ? D_VICTORY
+  : name === 'Curse' ? D_CURSE
+  : D_ACTION;
+mkdirSync(join(root, 'dominion', 'art'), { recursive: true });
+for (const [name, glyph] of Object.entries(D_ART))
+  writeFileSync(join(root, 'dominion', 'art', `${dArtId(name)}.svg`), emblemSvg(dArtColor(name), glyph));
+console.log(`wrote dominion/art/ (${Object.keys(D_ART).length} emblems)`);
+
 writeBox('dominion', {
   gamebox: 1,
   name: 'Dominion (base, first game)',
   blurb: 'Full supply, kingdom, and starter decks.',
   version: '1.0.0',
+  assets: Object.fromEntries(
+    Object.keys(D_ART).map((n) => [dArtId(n), `art/${dArtId(n)}.svg`]),
+  ),
   layout: dominionLayout,
 });
 

@@ -3,6 +3,25 @@
   "name": "Dominion (base, first game)",
   "blurb": "Full supply, kingdom, and starter decks.",
   "version": "1.0.0",
+  "assets": {
+    "copper": "art/copper.svg",
+    "silver": "art/silver.svg",
+    "gold": "art/gold.svg",
+    "estate": "art/estate.svg",
+    "duchy": "art/duchy.svg",
+    "province": "art/province.svg",
+    "curse": "art/curse.svg",
+    "cellar": "art/cellar.svg",
+    "moat": "art/moat.svg",
+    "merchant": "art/merchant.svg",
+    "village": "art/village.svg",
+    "workshop": "art/workshop.svg",
+    "militia": "art/militia.svg",
+    "remodel": "art/remodel.svg",
+    "smithy": "art/smithy.svg",
+    "market": "art/market.svg",
+    "mine": "art/mine.svg"
+  },
   "layout": [
     {
       "type": "cardset",
@@ -20,7 +39,8 @@
             "body": "$1",
             "sub": "$0 · Treasure",
             "color": "#a5741a",
-            "count": 32
+            "count": 32,
+            "image": "asset:copper"
           }
         ]
       }
@@ -41,7 +61,8 @@
             "body": "$2",
             "sub": "$3 · Treasure",
             "color": "#a5741a",
-            "count": 40
+            "count": 40,
+            "image": "asset:silver"
           }
         ]
       }
@@ -62,7 +83,8 @@
             "body": "$3",
             "sub": "$6 · Treasure",
             "color": "#a5741a",
-            "count": 30
+            "count": 30,
+            "image": "asset:gold"
           }
         ]
       }
@@ -83,7 +105,8 @@
             "body": "1 VP",
             "sub": "$2 · Victory",
             "color": "#2e7d46",
-            "count": 12
+            "count": 12,
+            "image": "asset:estate"
           }
         ]
       }
@@ -104,7 +127,8 @@
             "body": "3 VP",
             "sub": "$5 · Victory",
             "color": "#2e7d46",
-            "count": 12
+            "count": 12,
+            "image": "asset:duchy"
           }
         ]
       }
@@ -125,7 +149,8 @@
             "body": "6 VP",
             "sub": "$8 · Victory",
             "color": "#2e7d46",
-            "count": 12
+            "count": 12,
+            "image": "asset:province"
           }
         ]
       }
@@ -146,7 +171,8 @@
             "body": "−1 VP",
             "sub": "$0 · Victory",
             "color": "#7d3fa0",
-            "count": 30
+            "count": 30,
+            "image": "asset:curse"
           }
         ]
       }
@@ -167,7 +193,8 @@
             "body": "+1 Action\nDiscard any number of cards, then draw that many.",
             "sub": "$2 · Action",
             "color": "#4a4f58",
-            "count": 10
+            "count": 10,
+            "image": "asset:cellar"
           }
         ]
       }
@@ -188,7 +215,8 @@
             "body": "+2 Cards\nWhen another player plays an Attack, you may reveal this to be unaffected.",
             "sub": "$2 · Action–Reaction",
             "color": "#4a4f58",
-            "count": 10
+            "count": 10,
+            "image": "asset:moat"
           }
         ]
       }
@@ -209,7 +237,8 @@
             "body": "+1 Card, +1 Action\nThe first time you play a Silver this turn, +$1.",
             "sub": "$3 · Action",
             "color": "#4a4f58",
-            "count": 10
+            "count": 10,
+            "image": "asset:merchant"
           }
         ]
       }
@@ -230,7 +259,8 @@
             "body": "+1 Card, +2 Actions",
             "sub": "$3 · Action",
             "color": "#4a4f58",
-            "count": 10
+            "count": 10,
+            "image": "asset:village"
           }
         ]
       }
@@ -251,7 +281,8 @@
             "body": "Gain a card costing up to $4.",
             "sub": "$3 · Action",
             "color": "#4a4f58",
-            "count": 10
+            "count": 10,
+            "image": "asset:workshop"
           }
         ]
       }
@@ -272,7 +303,8 @@
             "body": "+$2\nEach other player discards down to 3 cards in hand.",
             "sub": "$4 · Action–Attack",
             "color": "#4a4f58",
-            "count": 10
+            "count": 10,
+            "image": "asset:militia"
           }
         ]
       }
@@ -293,7 +325,8 @@
             "body": "Trash a card from your hand. Gain a card costing up to $2 more than it.",
             "sub": "$4 · Action",
             "color": "#4a4f58",
-            "count": 10
+            "count": 10,
+            "image": "asset:remodel"
           }
         ]
       }
@@ -314,7 +347,8 @@
             "body": "+3 Cards",
             "sub": "$4 · Action",
             "color": "#4a4f58",
-            "count": 10
+            "count": 10,
+            "image": "asset:smithy"
           }
         ]
       }
@@ -335,7 +369,8 @@
             "body": "+1 Card, +1 Action, +1 Buy, +$1",
             "sub": "$5 · Action",
             "color": "#4a4f58",
-            "count": 10
+            "count": 10,
+            "image": "asset:market"
           }
         ]
       }
@@ -356,7 +391,8 @@
             "body": "Trash a Treasure from your hand. Gain a Treasure to your hand costing up to $3 more than it.",
             "sub": "$5 · Action",
             "color": "#4a4f58",
-            "count": 10
+            "count": 10,
+            "image": "asset:mine"
           }
         ]
       }
@@ -376,14 +412,16 @@
             "body": "$1",
             "sub": "$0 · Treasure",
             "color": "#a5741a",
-            "count": 7
+            "count": 7,
+            "image": "asset:copper"
           },
           {
             "title": "Estate",
             "body": "1 VP",
             "sub": "$2 · Victory",
             "color": "#2e7d46",
-            "count": 3
+            "count": 3,
+            "image": "asset:estate"
           }
         ]
       }
@@ -403,14 +441,16 @@
             "body": "$1",
             "sub": "$0 · Treasure",
             "color": "#a5741a",
-            "count": 7
+            "count": 7,
+            "image": "asset:copper"
           },
           {
             "title": "Estate",
             "body": "1 VP",
             "sub": "$2 · Victory",
             "color": "#2e7d46",
-            "count": 3
+            "count": 3,
+            "image": "asset:estate"
           }
         ]
       }
@@ -430,14 +470,16 @@
             "body": "$1",
             "sub": "$0 · Treasure",
             "color": "#a5741a",
-            "count": 7
+            "count": 7,
+            "image": "asset:copper"
           },
           {
             "title": "Estate",
             "body": "1 VP",
             "sub": "$2 · Victory",
             "color": "#2e7d46",
-            "count": 3
+            "count": 3,
+            "image": "asset:estate"
           }
         ]
       }
@@ -457,14 +499,16 @@
             "body": "$1",
             "sub": "$0 · Treasure",
             "color": "#a5741a",
-            "count": 7
+            "count": 7,
+            "image": "asset:copper"
           },
           {
             "title": "Estate",
             "body": "1 VP",
             "sub": "$2 · Victory",
             "color": "#2e7d46",
-            "count": 3
+            "count": 3,
+            "image": "asset:estate"
           }
         ]
       }

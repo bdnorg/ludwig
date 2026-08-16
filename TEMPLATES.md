@@ -42,7 +42,8 @@ deck of text cards — enough for Dominion-style games without any art.
       "body": "+1 Card, +2 Actions",  // rule text (\n for line breaks)
       "sub": "$3 · Action",           // bottom line, e.g. cost · type
       "color": "#4a4f58",             // title/accent color
-      "image": null,                  // or an image URL instead of text
+      "image": null,                  // art URL: with title/body it renders as
+                                      // an art strip; alone it fills the face
       "count": 10                     // copies (default 1)
     }
   ]
