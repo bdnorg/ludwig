@@ -38,7 +38,8 @@ node scripts/p2ptest.mjs     # 2-browser P2P sync
 ```
 
 - A leftover dev server on port 5173 serving this folder is fine — **reuse it**,
-  don't kill/restart.
+  don't kill/restart. But verify it actually serves this repo first: if it
+  404s, it's a zombie from a deleted checkout — kill it and start fresh.
 - Update the integration suites in `scripts/` whenever behavior changes; a
   milestone isn't done until they pass against the new behavior.
 
@@ -55,6 +56,9 @@ node scripts/p2ptest.mjs     # 2-browser P2P sync
 - Keep the shift-pan test **last** in a suite.
 - Do NOT verify with the Claude Preview panel — it reports a zero-size
   viewport. Use the Playwright scripts / real Chrome.
+- The dependency is `playwright-core` with `channel: 'chrome'` (no bundled
+  browsers) — throwaway scripts must import it the same way, from inside
+  the repo so node resolves it.
 
 ## Roadmap & handoff status
 
@@ -163,11 +167,22 @@ are referenced as `asset:<id>`.
       "Quick rules" reference page (unused until now) — it's the exemplar;
       `gamebox.test.ts` covers pages landing on root config via both a
       synthetic manifest and euchre's real one.
+- [ ] Permanent integration suite for the lobby gamebox flow (upload a
+      manifest, download one, both upload error paths — structural failure
+      and relative-asset rejection). These were verified with throwaway
+      scripts when the lobby landed; nothing guards them now. Precondition
+      for retiring the code templates.
+- [ ] Retire the code templates (per the design call above) — unblocked
+      once the suite above exists; dominiontest/catantest already exercise
+      the gamebox path since the gallery prefers boxes.
 - [ ] Author new pure-config gameboxes, one per session: cribbage, chess, go
       (needs infinite stone supply mats — `supply: 'infinite'` exists),
       Scrabble, Texas Hold'em, Pandemic, RoboRally, Codenames (per-role
       visibility: try `owners` list on the key mat).
 - [ ] General-purpose gamebox (after turn-keeper + wordlist design calls).
+- [ ] (design-heavy) Card zoom/peek gesture: 72×100 faces with 0.38rem rules
+      text are at the legibility edge — a hover/long-press enlarged preview,
+      with a visible affordance, would help every text-heavy game.
 
 ## Milestone wrap-up checklist
 
