@@ -67,6 +67,21 @@ come first, and mechanical tasks (fine for Sonnet/Opus) are postponed. Update
 the checkboxes as work lands.
 
 **Design-heavy — prefer Fable/top model:**
+- [x] M19 card-play UX — DONE (committed): summary card faces
+      (`CardFace.badges` — title + art + chips; rules text moves to the
+      hover inspector, `v` pins), drag-whole-pile default (⇧-drag takes
+      one), count prefix (`5 d` = draw 5), `reshuffle:<label>` mat-button
+      compound, `r` rolls all dice on a mat, hover bar lifted off the count
+      badge; Dominion got per-player Deck/Discard pairs, badges, and a
+      play-area Σ coin sum. PROPOSAL.md **v5** drafted — discuss before
+      building further.
+- [ ] (design-heavy, discuss PROPOSAL v5 §4 first) Seats & attribution:
+      `claim-seat:<group>` compound + roster affordance, actor-colored
+      change flash (version.actor is already on every mutation),
+      owner-colored mat chrome.
+- [ ] (after v5 discussion) `showSum` list form (v5 §5), anchored + item
+      buttons (v5 §3), `autoReshuffle` escalation (v5 §6), inspector
+      placement/touch (v5 §1).
 - [x] M17 stacking & drag feel — DONE (committed): single bottom-center handle,
       hover-scoped handles (hover-self tracking in EntityView), visible
       under-piece, real token ghosts (TokenView.svelte), token piles dissolved
@@ -180,9 +195,6 @@ are referenced as `asset:<id>`.
       Scrabble, Texas Hold'em, Pandemic, RoboRally, Codenames (per-role
       visibility: try `owners` list on the key mat).
 - [ ] General-purpose gamebox (after turn-keeper + wordlist design calls).
-- [ ] (design-heavy) Card zoom/peek gesture: 72×100 faces with 0.38rem rules
-      text are at the legibility edge — a hover/long-press enlarged preview,
-      with a visible affordance, would help every text-heavy game.
 
 ## Milestone wrap-up checklist
 

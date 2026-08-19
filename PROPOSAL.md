@@ -195,3 +195,101 @@ Annotation… · Duplicate · Delete.
 5. Kind dissolution deferred until after v4 playtesting.
 6. Sequencing: M13 selection & handles → M14 views, values, item settings,
    buttons, gestures → M15 supplies & boards → M16 privacy & front door.
+
+---
+
+# v5 — the card-play pass
+
+> Status: **DRAFT, for discussion** (2026-08, after the first real Dominion
+> playtest). Items marked ✅ landed with M19; everything else is proposed.
+> The organizing idea is unchanged from v4 — kinds render, configuration
+> behaves — plus one new lens: **at card-game speed, every common motion
+> must be one gesture or two keys**, and the pieces those motions are built
+> from should be orthogonal primitives, not fused specials.
+
+## 1. Readable cards: summary faces + the inspector ✅
+
+- A card face with `badges: string[]` renders **title + art + badges only**
+  at table size; the rules text lives in the **inspector**, a panel that
+  opens ~⅓s after hovering any visible card face (`v` pins it). Small faces
+  answer "which card is this?"; the inspector answers "what does it do?".
+- Cardset authors write badges by hand or derive them (Dominion pulls
+  `+N Cards/Actions/Buys` out of the rules text at generation time).
+- Open questions: (a) should the inspector be a **placeable widget** (a
+  viewer-local chrome piece — tension with "no chrome-only objects") or
+  stay a fixed panel with a corner preference? (b) touch: long-press?
+
+## 2. The verb grammar: count × verb × target
+
+One action registry, four surfaces (hover strip, context menu, palette,
+keys) — that's v4 §9 and it stays. v5 composes *sentences* around it:
+
+- **Count prefix** ✅: `5 d` = draw five. Any digit(s), then an action key.
+  Actions opt in (`args.n` natively, or `countable: 'repeat'`).
+- **Target suffix** (exists): `s` + mat letter = send-to. Same shape.
+- **Parameterized compound ids** ✅ (`reshuffle:<mat label>`): action ids
+  are strings, so buttons, double-click quickActions, and macros all speak
+  one language, and a parameter names a mat by label. Proposed family,
+  added only as a game needs them: `send-all:<label>` (sweep this mat's
+  items there), `deal:<n>` (skip the prompt). NOT proposed: per-game verbs.
+- Principle: **two orthogonal primitives beat one fused one** — count +
+  draw, not "draw5"; reshuffle:<label> not "dominion cleanup".
+
+## 3. Buttons where the designer wants them
+
+Mat buttons exist (v4 §5) ✅ and now include compounds. Proposed next:
+
+- `buttons: [{ label?, icon?, action, anchor?: 'n'|'s'|'e'|'w' }]` — edge
+  placement, so a deck's ⟳ can sit beside its discard rather than below.
+- **Item buttons**: the same array on any item's config (a "roll" pip on a
+  die, "flip" on a settings card). Same registry, same renderer.
+- Buttons remain attached to mats/items — no free-floating button objects
+  (that would be chrome-only, rejected by principle).
+
+## 4. Players as seats (the big open design)
+
+What already exists: `PlayerInfo { id, name, color }`; mats with
+`ownerId`/`owners`; the privacy spectrum (`backs`/`count`/`nothing`) with
+per-facet visibility rules; `positioning: 'arbitrary'` so each viewer
+places others' private mats in their own view; the hand tray as a pinned
+view of an ordinary mat. **A hand is already just a private fan mat** —
+the model the playtest asked for is largely built. Proposed additions:
+
+- **Seat kits.** A gamebox declares per-seat furniture as a mat group
+  (`groups: ['seat 1']` — Dominion's Deck/Discard pairs are the shape).
+  One click on a seat's "claim" affordance sets me as owner of the
+  group's mats and tints them my color. No new kind; a compound action
+  (`claim-seat:<group>`) plus a roster affordance.
+- **Action attribution** (cheap, high value): every mutation already
+  carries `version.actor`. Render a transient ring in the actor's color
+  (~1s fade) around entities changed by a remote commit. Local-only,
+  zero protocol change; the log already narrates, this makes it glanceable.
+- **Owner-colored chrome**: an owned mat's ring/label uses the owner's
+  roster color instead of the generic accent, so "whose is that?" reads
+  at a glance — same place attribution flashes.
+- **Arrange-others polish**: arbitrary positioning works today; add a
+  sensible default (new peers' private mats auto-arrange along my top
+  edge) so the feature is discovered.
+
+## 5. Sums beyond one value
+
+`showSum: 'coin'` ✅ puts one Σ badge on a mat. Proposed: `showSum` accepts
+a list (`['coin', 'vp']` → a row of Σ badges). Still config, still one
+renderer. Not proposed: computed expressions — a sum per named value is
+enough until a playtest says otherwise.
+
+## 6. Deck ↔ discard pairing
+
+`reshuffle:<label>` ✅ is the pairing, expressed where it's used. If
+playtests show the two-click rhythm (empty deck → button) still drags,
+the escalation path is `autoReshuffle: '<label>'` on the deck — drawing
+from empty sweeps + shuffles + draws in one motion. Deferred until felt.
+
+## Discussion queue (want your calls)
+
+1. Inspector: fixed panel vs placeable widget vs "follows the cursor"?
+2. Seat kits: claim by click, or auto-claim in join order?
+3. Attribution: is the colored flash enough, or also tint the cursor
+   trails (Cursors.svelte already draws per-peer pointers)?
+4. Count prefix scope: extend to flip/send ("3 s → letter" sends top 3)?
+5. Anchored buttons (§3): worth it now, or after the next playtest?
