@@ -133,17 +133,26 @@ const emblemSvg = (color, glyph) =>
   `<text x="48" y="30" font-size="26" text-anchor="middle">${glyph}</text>` +
   `</svg>\n`;
 
+// at-a-glance chips for the small face (mirror of dominion.ts, v5)
+const dBadges = (body) =>
+  [...body.matchAll(/\+\d+ (?:Cards?|Actions?|Buys?)|\+\$\d+/g)].map((m) => m[0]);
+
 const dMoney = (name, worth, cost, count) => ({
-  title: name, body: worth, sub: `$${cost} · Treasure`, color: D_TREASURE, count,
+  title: name, sub: `$${cost} · Treasure`, color: D_TREASURE, count,
   image: `asset:${dArtId(name)}`,
+  badges: [worth],
+  values: { coin: Number(worth.replace('−', '-').replace('$', '')) },
 });
 const dVp = (name, points, cost, count, color = D_VICTORY) => ({
-  title: name, body: points, sub: `$${cost} · Victory`, color, count,
+  title: name, sub: `$${cost} · Victory`, color, count,
   image: `asset:${dArtId(name)}`,
+  badges: [points],
+  values: { vp: Number(points.replace('−', '-').replace(/ VP$/, '')) },
 });
-const dAction = (name, body, cost, type = 'Action') => ({
+const dAction = (name, body, cost, type = 'Action', badges) => ({
   title: name, body, sub: `$${cost} · ${type}`, color: D_ACTION, count: 10,
   image: `asset:${dArtId(name)}`,
+  badges: badges ?? dBadges(body),
 });
 
 const KINGDOM = [
@@ -151,12 +160,12 @@ const KINGDOM = [
   dAction('Moat', '+2 Cards\nWhen another player plays an Attack, you may reveal this to be unaffected.', 2, 'Action–Reaction'),
   dAction('Merchant', '+1 Card, +1 Action\nThe first time you play a Silver this turn, +$1.', 3),
   dAction('Village', '+1 Card, +2 Actions', 3),
-  dAction('Workshop', 'Gain a card costing up to $4.', 3),
+  dAction('Workshop', 'Gain a card costing up to $4.', 3, 'Action', ['Gain ≤ $4']),
   dAction('Militia', '+$2\nEach other player discards down to 3 cards in hand.', 4, 'Action–Attack'),
-  dAction('Remodel', 'Trash a card from your hand. Gain a card costing up to $2 more than it.', 4),
+  dAction('Remodel', 'Trash a card from your hand. Gain a card costing up to $2 more than it.', 4, 'Action', ['Trash → +$2']),
   dAction('Smithy', '+3 Cards', 4),
   dAction('Market', '+1 Card, +1 Action, +1 Buy, +$1', 5),
-  dAction('Mine', 'Trash a Treasure from your hand. Gain a Treasure to your hand costing up to $3 more than it.', 5),
+  dAction('Mine', 'Trash a Treasure from your hand. Gain a Treasure to your hand costing up to $3 more than it.', 5, 'Action', ['Treasure → +$3']),
 ];
 
 const D_GAP_X = CARD_W + 28;
@@ -180,13 +189,20 @@ const dominionLayout = [
   dPile(dVp('Curse', '−1 VP', 0, 1, D_CURSE), dAt(2, 2), 30),
   // kingdom: two rows of five, cheap to expensive
   ...KINGDOM.map((spec, i) => dPile(spec, dAt(3 + (i % 5), Math.floor(i / 5)), 10)),
-  // starter decks: 7 Copper + 3 Estate each, shuffled face down
+  // per-player deck + discard pairs, below the play-area zone (v5): the
+  // deck's ⟳ button sweeps its discard back in and shuffles
+  ...[0, 1, 2, 3].map((p) => ({
+    type: 'mat',
+    at: dAt(p * 1.6 + 1.78, 4.3),
+    opts: { label: `Discard ${p + 1}`, placement: { type: 'stack' }, faceDefault: 'up', visibility: { faces: 'public' } },
+  })),
   ...[0, 1, 2, 3].map((p) => ({
     type: 'cardset',
-    at: dAt(p * 1.6 + 1, 4.3), // below the play-area zone
+    at: dAt(p * 1.6 + 1, 4.3),
     spec: {
-      name: `Starter deck ${p + 1}`,
+      name: `Deck ${p + 1}`,
       facePolicy: 'down',
+      mat: { buttons: [{ label: '⟳ reshuffle', action: `reshuffle:Discard ${p + 1}` }] },
       cards: [dMoney('Copper', '$1', 0, 7), dVp('Estate', '1 VP', 2, 3)],
     },
   })),
@@ -205,13 +221,14 @@ const dominionLayout = [
       faceDefault: 'keep',
       size: { w: D_GAP_X * 5 - 28, h: CARD_H + 60 },
       groups: ['play'],
+      showSum: 'coin',
     },
   },
   {
     type: 'note',
     at: dAt(8.2, 0),
     text:
-      'SETUP: each player takes a starter deck (7 Copper, 3 Estate), shuffles (right-click), and draws 5 to hand (double-click ×5).\n\nBuy: drag a card off a supply pile to your discard. Game ends when Provinces (or any 3 piles) run out.',
+      'SETUP: each player takes a Deck (7 Copper, 3 Estate). Hover it, type 5 then d: opening hand.\n\nPlay cards to the play area — the Σ badge totals your treasure. Buy: ⇧-drag off a supply pile into your Discard. Deck empty? Its ⟳ button reshuffles your Discard into it.\n\nHover any card to read it (v pins). Game ends when Provinces (or any 3 piles) run out.',
   },
 ];
 

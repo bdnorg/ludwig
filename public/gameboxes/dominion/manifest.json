@@ -36,11 +36,16 @@
         "cards": [
           {
             "title": "Copper",
-            "body": "$1",
             "sub": "$0 · Treasure",
             "color": "#a5741a",
             "count": 32,
-            "image": "asset:copper"
+            "image": "asset:copper",
+            "badges": [
+              "$1"
+            ],
+            "values": {
+              "coin": 1
+            }
           }
         ]
       }
@@ -58,11 +63,16 @@
         "cards": [
           {
             "title": "Silver",
-            "body": "$2",
             "sub": "$3 · Treasure",
             "color": "#a5741a",
             "count": 40,
-            "image": "asset:silver"
+            "image": "asset:silver",
+            "badges": [
+              "$2"
+            ],
+            "values": {
+              "coin": 2
+            }
           }
         ]
       }
@@ -80,11 +90,16 @@
         "cards": [
           {
             "title": "Gold",
-            "body": "$3",
             "sub": "$6 · Treasure",
             "color": "#a5741a",
             "count": 30,
-            "image": "asset:gold"
+            "image": "asset:gold",
+            "badges": [
+              "$3"
+            ],
+            "values": {
+              "coin": 3
+            }
           }
         ]
       }
@@ -102,11 +117,16 @@
         "cards": [
           {
             "title": "Estate",
-            "body": "1 VP",
             "sub": "$2 · Victory",
             "color": "#2e7d46",
             "count": 12,
-            "image": "asset:estate"
+            "image": "asset:estate",
+            "badges": [
+              "1 VP"
+            ],
+            "values": {
+              "vp": 1
+            }
           }
         ]
       }
@@ -124,11 +144,16 @@
         "cards": [
           {
             "title": "Duchy",
-            "body": "3 VP",
             "sub": "$5 · Victory",
             "color": "#2e7d46",
             "count": 12,
-            "image": "asset:duchy"
+            "image": "asset:duchy",
+            "badges": [
+              "3 VP"
+            ],
+            "values": {
+              "vp": 3
+            }
           }
         ]
       }
@@ -146,11 +171,16 @@
         "cards": [
           {
             "title": "Province",
-            "body": "6 VP",
             "sub": "$8 · Victory",
             "color": "#2e7d46",
             "count": 12,
-            "image": "asset:province"
+            "image": "asset:province",
+            "badges": [
+              "6 VP"
+            ],
+            "values": {
+              "vp": 6
+            }
           }
         ]
       }
@@ -168,11 +198,16 @@
         "cards": [
           {
             "title": "Curse",
-            "body": "−1 VP",
             "sub": "$0 · Victory",
             "color": "#7d3fa0",
             "count": 30,
-            "image": "asset:curse"
+            "image": "asset:curse",
+            "badges": [
+              "−1 VP"
+            ],
+            "values": {
+              "vp": -1
+            }
           }
         ]
       }
@@ -194,7 +229,10 @@
             "sub": "$2 · Action",
             "color": "#4a4f58",
             "count": 10,
-            "image": "asset:cellar"
+            "image": "asset:cellar",
+            "badges": [
+              "+1 Action"
+            ]
           }
         ]
       }
@@ -216,7 +254,10 @@
             "sub": "$2 · Action–Reaction",
             "color": "#4a4f58",
             "count": 10,
-            "image": "asset:moat"
+            "image": "asset:moat",
+            "badges": [
+              "+2 Cards"
+            ]
           }
         ]
       }
@@ -238,7 +279,12 @@
             "sub": "$3 · Action",
             "color": "#4a4f58",
             "count": 10,
-            "image": "asset:merchant"
+            "image": "asset:merchant",
+            "badges": [
+              "+1 Card",
+              "+1 Action",
+              "+$1"
+            ]
           }
         ]
       }
@@ -260,7 +306,11 @@
             "sub": "$3 · Action",
             "color": "#4a4f58",
             "count": 10,
-            "image": "asset:village"
+            "image": "asset:village",
+            "badges": [
+              "+1 Card",
+              "+2 Actions"
+            ]
           }
         ]
       }
@@ -282,7 +332,10 @@
             "sub": "$3 · Action",
             "color": "#4a4f58",
             "count": 10,
-            "image": "asset:workshop"
+            "image": "asset:workshop",
+            "badges": [
+              "Gain ≤ $4"
+            ]
           }
         ]
       }
@@ -304,7 +357,10 @@
             "sub": "$4 · Action–Attack",
             "color": "#4a4f58",
             "count": 10,
-            "image": "asset:militia"
+            "image": "asset:militia",
+            "badges": [
+              "+$2"
+            ]
           }
         ]
       }
@@ -326,7 +382,10 @@
             "sub": "$4 · Action",
             "color": "#4a4f58",
             "count": 10,
-            "image": "asset:remodel"
+            "image": "asset:remodel",
+            "badges": [
+              "Trash → +$2"
+            ]
           }
         ]
       }
@@ -348,7 +407,10 @@
             "sub": "$4 · Action",
             "color": "#4a4f58",
             "count": 10,
-            "image": "asset:smithy"
+            "image": "asset:smithy",
+            "badges": [
+              "+3 Cards"
+            ]
           }
         ]
       }
@@ -370,7 +432,13 @@
             "sub": "$5 · Action",
             "color": "#4a4f58",
             "count": 10,
-            "image": "asset:market"
+            "image": "asset:market",
+            "badges": [
+              "+1 Card",
+              "+1 Action",
+              "+1 Buy",
+              "+$1"
+            ]
           }
         ]
       }
@@ -392,9 +460,80 @@
             "sub": "$5 · Action",
             "color": "#4a4f58",
             "count": 10,
-            "image": "asset:mine"
+            "image": "asset:mine",
+            "badges": [
+              "Treasure → +$3"
+            ]
           }
         ]
+      }
+    },
+    {
+      "type": "mat",
+      "at": [
+        178,
+        576.2
+      ],
+      "opts": {
+        "label": "Discard 1",
+        "placement": {
+          "type": "stack"
+        },
+        "faceDefault": "up",
+        "visibility": {
+          "faces": "public"
+        }
+      }
+    },
+    {
+      "type": "mat",
+      "at": [
+        338,
+        576.2
+      ],
+      "opts": {
+        "label": "Discard 2",
+        "placement": {
+          "type": "stack"
+        },
+        "faceDefault": "up",
+        "visibility": {
+          "faces": "public"
+        }
+      }
+    },
+    {
+      "type": "mat",
+      "at": [
+        498,
+        576.2
+      ],
+      "opts": {
+        "label": "Discard 3",
+        "placement": {
+          "type": "stack"
+        },
+        "faceDefault": "up",
+        "visibility": {
+          "faces": "public"
+        }
+      }
+    },
+    {
+      "type": "mat",
+      "at": [
+        658,
+        576.2
+      ],
+      "opts": {
+        "label": "Discard 4",
+        "placement": {
+          "type": "stack"
+        },
+        "faceDefault": "up",
+        "visibility": {
+          "faces": "public"
+        }
       }
     },
     {
@@ -404,24 +543,42 @@
         576.2
       ],
       "spec": {
-        "name": "Starter deck 1",
+        "name": "Deck 1",
         "facePolicy": "down",
+        "mat": {
+          "buttons": [
+            {
+              "label": "⟳ reshuffle",
+              "action": "reshuffle:Discard 1"
+            }
+          ]
+        },
         "cards": [
           {
             "title": "Copper",
-            "body": "$1",
             "sub": "$0 · Treasure",
             "color": "#a5741a",
             "count": 7,
-            "image": "asset:copper"
+            "image": "asset:copper",
+            "badges": [
+              "$1"
+            ],
+            "values": {
+              "coin": 1
+            }
           },
           {
             "title": "Estate",
-            "body": "1 VP",
             "sub": "$2 · Victory",
             "color": "#2e7d46",
             "count": 3,
-            "image": "asset:estate"
+            "image": "asset:estate",
+            "badges": [
+              "1 VP"
+            ],
+            "values": {
+              "vp": 1
+            }
           }
         ]
       }
@@ -433,24 +590,42 @@
         576.2
       ],
       "spec": {
-        "name": "Starter deck 2",
+        "name": "Deck 2",
         "facePolicy": "down",
+        "mat": {
+          "buttons": [
+            {
+              "label": "⟳ reshuffle",
+              "action": "reshuffle:Discard 2"
+            }
+          ]
+        },
         "cards": [
           {
             "title": "Copper",
-            "body": "$1",
             "sub": "$0 · Treasure",
             "color": "#a5741a",
             "count": 7,
-            "image": "asset:copper"
+            "image": "asset:copper",
+            "badges": [
+              "$1"
+            ],
+            "values": {
+              "coin": 1
+            }
           },
           {
             "title": "Estate",
-            "body": "1 VP",
             "sub": "$2 · Victory",
             "color": "#2e7d46",
             "count": 3,
-            "image": "asset:estate"
+            "image": "asset:estate",
+            "badges": [
+              "1 VP"
+            ],
+            "values": {
+              "vp": 1
+            }
           }
         ]
       }
@@ -462,24 +637,42 @@
         576.2
       ],
       "spec": {
-        "name": "Starter deck 3",
+        "name": "Deck 3",
         "facePolicy": "down",
+        "mat": {
+          "buttons": [
+            {
+              "label": "⟳ reshuffle",
+              "action": "reshuffle:Discard 3"
+            }
+          ]
+        },
         "cards": [
           {
             "title": "Copper",
-            "body": "$1",
             "sub": "$0 · Treasure",
             "color": "#a5741a",
             "count": 7,
-            "image": "asset:copper"
+            "image": "asset:copper",
+            "badges": [
+              "$1"
+            ],
+            "values": {
+              "coin": 1
+            }
           },
           {
             "title": "Estate",
-            "body": "1 VP",
             "sub": "$2 · Victory",
             "color": "#2e7d46",
             "count": 3,
-            "image": "asset:estate"
+            "image": "asset:estate",
+            "badges": [
+              "1 VP"
+            ],
+            "values": {
+              "vp": 1
+            }
           }
         ]
       }
@@ -491,24 +684,42 @@
         576.2
       ],
       "spec": {
-        "name": "Starter deck 4",
+        "name": "Deck 4",
         "facePolicy": "down",
+        "mat": {
+          "buttons": [
+            {
+              "label": "⟳ reshuffle",
+              "action": "reshuffle:Discard 4"
+            }
+          ]
+        },
         "cards": [
           {
             "title": "Copper",
-            "body": "$1",
             "sub": "$0 · Treasure",
             "color": "#a5741a",
             "count": 7,
-            "image": "asset:copper"
+            "image": "asset:copper",
+            "badges": [
+              "$1"
+            ],
+            "values": {
+              "coin": 1
+            }
           },
           {
             "title": "Estate",
-            "body": "1 VP",
             "sub": "$2 · Victory",
             "color": "#2e7d46",
             "count": 3,
-            "image": "asset:estate"
+            "image": "asset:estate",
+            "badges": [
+              "1 VP"
+            ],
+            "values": {
+              "vp": 1
+            }
           }
         ]
       }
@@ -551,7 +762,8 @@
         },
         "groups": [
           "play"
-        ]
+        ],
+        "showSum": "coin"
       }
     },
     {
@@ -560,7 +772,7 @@
         820,
         0
       ],
-      "text": "SETUP: each player takes a starter deck (7 Copper, 3 Estate), shuffles (right-click), and draws 5 to hand (double-click ×5).\n\nBuy: drag a card off a supply pile to your discard. Game ends when Provinces (or any 3 piles) run out."
+      "text": "SETUP: each player takes a Deck (7 Copper, 3 Estate). Hover it, type 5 then d: opening hand.\n\nPlay cards to the play area — the Σ badge totals your treasure. Buy: ⇧-drag off a supply pile into your Discard. Deck empty? Its ⟳ button reshuffles your Discard into it.\n\nHover any card to read it (v pins). Game ends when Provinces (or any 3 piles) run out."
     }
   ]
 }

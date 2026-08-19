@@ -55,9 +55,15 @@ describe('dominion template', () => {
     // 10 kingdom piles of 10
     for (const k of ['Cellar', 'Moat', 'Merchant', 'Village', 'Workshop', 'Militia', 'Remodel', 'Smithy', 'Market', 'Mine'])
       expect(byLabel[k], k).toBe(10);
-    // 4 starter decks of 10, face down
-    const starters = decks.filter((d) => d.config.label.startsWith('Starter'));
+    // 4 player decks of 10, face down, each with a reshuffle button
+    // pointing at its own discard pile (v5)
+    const starters = decks.filter((d) => /^Deck \d$/.test(d.config.label));
     expect(starters).toHaveLength(4);
+    for (const s of starters)
+      expect(s.config.buttons?.[0]?.action).toBe(`reshuffle:Discard ${s.config.label.slice(5)}`);
+    const discards = decks.filter((d) => /^Discard \d$/.test(d.config.label));
+    expect(discards).toHaveLength(4);
+    for (const d of discards) expect(d.config.faceDefault).toBe('up');
     for (const s of starters) {
       expect(matCards(peer.state, s)).toHaveLength(10);
       expect(s.config.faceDefault).toBe('down');
