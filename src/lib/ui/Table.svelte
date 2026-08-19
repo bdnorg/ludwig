@@ -754,11 +754,11 @@
 
   // ---- send-to (stateful key sequence / click-resolve) ----
   const letters = $derived(matLetters(table.state));
-  function beginSend(action: UiAction, sel: Entity) {
+  function beginSend(action: UiAction, sel: Entity, n = 1) {
     // invoked with a multi-selection, send applies to all of it
     const ids =
       table.selected.length > 1 && table.isSelected(sel.id) ? [...table.selected] : [sel.id];
-    table.pendingSend = { actionId: action.id, selIds: ids };
+    table.pendingSend = { actionId: action.id, selIds: ids, n };
   }
   function resolveSend(mat: MatEntity) {
     const pending = table.pendingSend;
@@ -769,8 +769,8 @@
       .map((id) => table.get(id))
       .filter((e): e is Entity => !!e && e.id !== mat.id);
     if (!action || ents.length === 0) return;
-    if (action.muts) commitAll(action.muts, ents, { mat });
-    else action.run(ents[0], { mat });
+    if (action.muts) commitAll(action.muts, ents, { mat, n: pending.n });
+    else action.run(ents[0], { mat, n: pending.n });
   }
 
   // ---- context menu / hover buttons / palette (all from the registry) ----
@@ -795,7 +795,7 @@
    *  countable 'repeat' compose n times, others receive it via args. */
   function runAction(a: UiAction, sel: Entity | null, n = 1) {
     if (a.needsMat) {
-      if (sel) beginSend(a, sel);
+      if (sel) beginSend(a, sel, n);
       return;
     }
     if (n > 1 && a.countable === 'repeat' && a.muts && sel) {
@@ -1402,9 +1402,12 @@
   <LogPanel />
 
   {#if table.pendingSend}
-    <div class="sendhint">send to… press a mat letter (h = hand, Esc cancels)</div>
+    <div class="sendhint">
+      send{(table.pendingSend.n ?? 1) > 1 ? ` top ${table.pendingSend.n}` : ''} to… press a mat
+      letter (h = hand, Esc cancels)
+    </div>
   {:else if pendingCount}
-    <div class="sendhint">×{pendingCount} — now an action key (d = draw {pendingCount}…)</div>
+    <div class="sendhint">×{pendingCount} — now an action key (d draws, s sends…)</div>
   {/if}
 
   {#if band && (Math.abs(band.x1 - band.x0) > 4 || Math.abs(band.y1 - band.y0) > 4)}

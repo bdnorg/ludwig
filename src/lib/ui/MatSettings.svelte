@@ -103,6 +103,10 @@
           .filter(Boolean)
           .map((t) => {
             const i = t.indexOf(':');
+            // parameterized action ids (draw:5, reshuffle:Discard, macro:x)
+            // are one token, not a label:action pair
+            if (i > 0 && ['draw', 'reshuffle', 'macro'].includes(t.slice(0, i).trim()))
+              return { action: t };
             return i > 0 ? { label: t.slice(0, i).trim(), action: t.slice(i + 1).trim() } : { action: t };
           });
         m.config.buttons = btns.length > 0 ? btns : undefined;
@@ -196,7 +200,7 @@
       </select>
     </label>
     <label>
-      Buttons (action ids, e.g. draw, shuffle, roll-all-dice, flip-all-cards)
+      Buttons (action ids, e.g. draw, draw:5, shuffle, reshuffle:Discard, roll-all-dice)
       <input data-field="buttons" bind:value={buttonsText} placeholder="none" />
     </label>
     <label>

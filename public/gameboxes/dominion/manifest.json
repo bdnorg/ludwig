@@ -550,6 +550,9 @@
             {
               "label": "⟳ reshuffle",
               "action": "reshuffle:Discard 1"
+            },
+            {
+              "action": "draw:5"
             }
           ]
         },
@@ -597,6 +600,9 @@
             {
               "label": "⟳ reshuffle",
               "action": "reshuffle:Discard 2"
+            },
+            {
+              "action": "draw:5"
             }
           ]
         },
@@ -644,6 +650,9 @@
             {
               "label": "⟳ reshuffle",
               "action": "reshuffle:Discard 3"
+            },
+            {
+              "action": "draw:5"
             }
           ]
         },
@@ -691,6 +700,9 @@
             {
               "label": "⟳ reshuffle",
               "action": "reshuffle:Discard 4"
+            },
+            {
+              "action": "draw:5"
             }
           ]
         },

@@ -202,7 +202,7 @@ const dominionLayout = [
     spec: {
       name: `Deck ${p + 1}`,
       facePolicy: 'down',
-      mat: { buttons: [{ label: '⟳ reshuffle', action: `reshuffle:Discard ${p + 1}` }] },
+      mat: { buttons: [{ label: '⟳ reshuffle', action: `reshuffle:Discard ${p + 1}` }, { action: 'draw:5' }] },
       cards: [dMoney('Copper', '$1', 0, 7), dVp('Estate', '1 VP', 2, 3)],
     },
   })),

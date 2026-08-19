@@ -95,7 +95,9 @@ const sendMuts: MutsFn = (ctx, e, args) => {
   const m = args?.mat ? ctx.state.entities[args.mat.id] : undefined;
   if (m?.kind !== 'mat' || m.id === e.id) return [];
   if (isMat(e)) {
-    // sending a stack sends its top item
+    // sending a stack sends its top item — or top n with a count prefix
+    // ("3 s" then a letter, v5)
+    if ((args?.n ?? 1) > 1) return ops.drawTo(ctx, e, m, args!.n);
     const top = matItems(ctx.state, e)[0];
     return top ? ops.moveToMat(ctx, top, m) : [];
   }
@@ -363,6 +365,13 @@ export function runMatButton(actionId: string, mat: MatEntity): void {
     reshuffleFrom(mat, actionId.slice('reshuffle:'.length));
     return;
   }
+  // draw:<n> — a button preset for "draw n to my hand" (v5); the count
+  // prefix ("5 d") stays the way to pick an arbitrary n at runtime
+  if (actionId.startsWith('draw:')) {
+    const n = Math.max(1, parseInt(actionId.slice('draw:'.length), 10) || 1);
+    table.commit(ops.drawTo(table, mat, table.myHand(), n));
+    return;
+  }
   if (actionId === 'roll-all-dice') {
     const dice = matItems(table.state, mat).filter((e) => e.kind === 'dice');
     if (dice.length > 0) commitAll(rollMuts, dice);
@@ -381,6 +390,7 @@ export function matButtonLabel(actionId: string): string {
   if (actionId === 'roll-all-dice') return 'Roll';
   if (actionId === 'flip-all-cards') return 'Flip all';
   if (actionId.startsWith('reshuffle:')) return '⟳ reshuffle';
+  if (actionId.startsWith('draw:')) return `Draw ${actionId.slice('draw:'.length)}`;
   if (actionId.startsWith('macro:'))
     return macroActions().find((a) => a.id === actionId)?.label ?? actionId;
   return ACTIONS.find((x) => x.id === actionId)?.label ?? actionId;

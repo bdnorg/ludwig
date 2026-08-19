@@ -116,7 +116,12 @@ export function dominionTable(ctx: OpCtx, origin: Pos): Mutation[] {
         {
           name: `Deck ${p + 1}`,
           facePolicy: 'down',
-          mat: { buttons: [{ label: '⟳ reshuffle', action: `reshuffle:Discard ${p + 1}` }] },
+          mat: {
+            buttons: [
+              { label: '⟳ reshuffle', action: `reshuffle:Discard ${p + 1}` },
+              { action: 'draw:5' },
+            ],
+          },
           cards: [money('Copper', '$1', 0, 7), vp('Estate', '1 VP', 2, 3)],
         },
         at(p * 1.6 + 1, 4.3),
