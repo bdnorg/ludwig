@@ -75,13 +75,17 @@ the checkboxes as work lands.
       badge; Dominion got per-player Deck/Discard pairs, badges, and a
       play-area Σ coin sum. PROPOSAL.md **v5** drafted — discuss before
       building further.
-- [ ] (design-heavy, discuss PROPOSAL v5 §4 first) Seats & attribution:
-      `claim-seat:<group>` compound + roster affordance, actor-colored
-      change flash (version.actor is already on every mutation),
-      owner-colored mat chrome.
-- [ ] (after v5 discussion) `showSum` list form (v5 §5), anchored + item
-      buttons (v5 §3), `autoReshuffle` escalation (v5 §6), inspector
-      placement/touch (v5 §1).
+- [x] M20 v5 round 2 — DONE (committed): inspector panel is moveable +
+      resizable when pinned (geometry persisted per browser), lobby color
+      swatches (players pick their color at join), 2s actor-colored flash
+      on remotely-changed entities + fading cursor trails, count prefix on
+      send (`3 s` + letter), `draw:<n>` button presets (Dominion decks got
+      `Draw 5`), MatSettings parses compound ids unsplit.
+- [ ] (design-heavy, WAIT for user's calls — PROPOSAL v5 "Still open"):
+      seat kits + `claim-seat:<group>` + owner-colored mat chrome;
+      `autoReshuffle: '<label>'` on decks (recommendation written up);
+      anchored + item buttons; `showSum` list form; inspector touch
+      gesture.
 - [x] M17 stacking & drag feel — DONE (committed): single bottom-center handle,
       hover-scoped handles (hover-self tracking in EntityView), visible
       under-piece, real token ghosts (TokenView.svelte), token piles dissolved

@@ -285,11 +285,31 @@ playtests show the two-click rhythm (empty deck → button) still drags,
 the escalation path is `autoReshuffle: '<label>'` on the deck — drawing
 from empty sweeps + shuffles + draws in one motion. Deferred until felt.
 
-## Discussion queue (want your calls)
+## Decisions (2026-08 round 2) — landed ✅
 
-1. Inspector: fixed panel vs placeable widget vs "follows the cursor"?
-2. Seat kits: claim by click, or auto-claim in join order?
-3. Attribution: is the colored flash enough, or also tint the cursor
-   trails (Cursors.svelte already draws per-peer pointers)?
-4. Count prefix scope: extend to flip/send ("3 s → letter" sends top 3)?
-5. Anchored buttons (§3): worth it now, or after the next playtest?
+1. **Inspector is a moveable, resizable screen-chrome panel** ✅ — pinned
+   (`v`), its header bar drags it anywhere and a corner grip resizes;
+   geometry persists per browser. It is chrome like the tray/log, never a
+   table entity, so "no chrome-only objects" (a rule about the shared
+   felt, not the screen) is untouched.
+2. **Players choose their color at join** ✅ — swatch row + custom color
+   input in the lobby, saved with the identity.
+3. **Attribution: 2s actor-colored flash** on remotely-changed entities ✅
+   (version.actor was already on every mutation — local rendering only)
+   **plus fading cursor trails** per peer ✅.
+4. **Count prefix extends to send** ✅ (`3 s` + letter moves the top 3) and
+   **`draw:<n>` button presets** ✅ (Dominion decks ship `Draw 5`); the
+   count prefix remains the arbitrary-n one-off at runtime.
+
+## Still open (waiting on you)
+
+1. Seat kits (§4): claim by click, or auto-claim in join order?
+2. autoReshuffle (§6) — RECOMMENDATION: config on the deck mat,
+   `autoReshuffle: '<discard label>'`: a draw that finds the deck empty
+   runs the reshuffle compound first, then completes. Affordance: a small
+   ⟳ chip on the deck edge; hovering it outlines the linked mat, showing
+   the pairing. No new kind — it composes drawTo + the reshuffle
+   compound, and the config IS the deck↔discard connection. A dedicated
+   "deck+discard" primitive stays unnecessary unless this proves clumsy.
+3. Anchored buttons (§3 `anchor: n|s|e|w`) and item buttons: now, or
+   after the next playtest?
