@@ -44,8 +44,10 @@ timers, zones, and notes — or import your own card set / saved template
 | Pan / zoom table | ⇧-drag or middle-drag the felt / scroll wheel |
 | Select several things | ⌘/Ctrl-click, or rubber-band drag on the felt |
 | Act on a selection | drag any member to move all · f flips all · x deletes all |
-| Take the top card of a deck | drag it off the pile |
-| Move a whole deck or mat | ⇧-drag it, or grab its bottom handle |
+| Move a whole deck or pile | drag it (or grab its bottom handle) |
+| Take the top card of a deck | ⇧-drag it off the pile |
+| Draw several to hand | type a number, then d — 5 d draws five |
+| Read a card’s full text | hover it — the inspector opens top-right (v pins) |
 | Undo your last action | ⌘Z / Ctrl-Z or the toolbar button |
 | Draw a card to your hand | double-click a deck |
 | Flip a card | double-click it |
