@@ -224,7 +224,7 @@
   }
   .dart {
     width: 100%;
-    height: 18%;
+    height: 14%;
     flex: none;
     border-radius: 4px;
   }
@@ -244,12 +244,16 @@
   }
   .dbody {
     flex: 1;
-    font-size: 0.42em;
-    line-height: 1.35;
+    min-height: 0;
+    font-size: 0.4em;
+    line-height: 1.3;
     color: #3a3a40;
     display: flex;
+    flex-direction: column;
+    /* 'safe' keeps the START visible when long text overflows — a centered
+       overflow would clip both ends */
+    justify-content: safe center;
     align-items: center;
-    justify-content: center;
     text-align: center;
     white-space: pre-wrap;
     overflow: hidden;
