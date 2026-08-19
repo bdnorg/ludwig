@@ -21,6 +21,8 @@ import { table } from '../state/store.svelte';
 export interface RunArgs {
   mat?: MatEntity; // target for needsMat actions
   pos?: Pos;
+  /** count prefix (v5): "5 d" passes n=5 to actions that take one */
+  n?: number;
 }
 
 export type MutsFn = (ctx: OpCtx, e: Entity, args?: RunArgs) => Mutation[];
@@ -33,6 +35,9 @@ export interface UiAction {
   needsMat?: boolean; // waits for a mat letter after the key
   /** in the hover strip? (otherwise menu/palette/key only) */
   hover?: boolean;
+  /** how a count prefix applies (v5): 'repeat' composes the muts n times;
+   *  actions that take n natively read args.n instead */
+  countable?: 'repeat';
   /** pure mutation builder — presence makes the action selection-capable */
   muts?: MutsFn;
   appliesTo(sel: Entity): boolean;
@@ -134,7 +139,8 @@ export const ACTIONS: UiAction[] = [
     key: 'd',
     hover: true,
     appliesTo: (e) => isStackish(e) && nonEmpty(e),
-    run: (e) => table.commit(ops.drawTo(table, e as MatEntity, table.myHand())),
+    run: (e, args) =>
+      table.commit(ops.drawTo(table, e as MatEntity, table.myHand(), args?.n ?? 1)),
   },
   {
     id: 'flip',
@@ -166,6 +172,20 @@ export const ACTIONS: UiAction[] = [
     muts: rollMuts,
     appliesTo: (e) => e.kind === 'dice',
     run: (e) => commitAll(rollMuts, [e]),
+  },
+  {
+    // r on a dice tray (or any mat holding dice) rolls them all (v5);
+    // listed after 'shuffle' so r on a card stack still shuffles
+    id: 'roll-all',
+    label: 'Roll all dice',
+    icon: '⚄',
+    key: 'r',
+    hover: true,
+    appliesTo: (e) => isMat(e) && matItems(table.state, e).some((i) => i.kind === 'dice'),
+    run: (e) => {
+      const dice = matItems(table.state, e as MatEntity).filter((i) => i.kind === 'dice');
+      if (dice.length > 0) commitAll(rollMuts, dice);
+    },
   },
   {
     id: 'to-hand',
@@ -257,6 +277,7 @@ export const ACTIONS: UiAction[] = [
     id: 'duplicate',
     label: 'Duplicate',
     muts: dupMuts,
+    countable: 'repeat',
     appliesTo: (e) => !e.locked && e.kind !== 'mat',
     run: (e) => commitAll(dupMuts, [e]),
   },
@@ -303,13 +324,43 @@ export function matCompoundItems(mat: MatEntity): Array<{ label: string; run: ()
   return out;
 }
 
+/** Sweep every item of the mat labeled `srcLabel` into `mat`, then shuffle —
+ *  the discard-into-deck motion as ONE parameterized button (v5). */
+function reshuffleFrom(mat: MatEntity, srcLabel: string): void {
+  const scratch: OpCtx = {
+    state: table.snapshot(),
+    next: () => table.next(),
+    clone: (x) => structuredClone(x),
+  };
+  const src = Object.values(scratch.state.entities).find(
+    (e): e is MatEntity => e.kind === 'mat' && e.config.label === srcLabel,
+  );
+  const target = scratch.state.entities[mat.id];
+  if (!src || target?.kind !== 'mat') return;
+  const muts = ops.moveItemsInto(scratch, matItems(scratch.state, src), target);
+  applyMutations(scratch.state, muts);
+  const after = scratch.state.entities[mat.id];
+  if (after?.kind === 'mat') muts.push(...ops.shuffleMat(scratch, after));
+  if (muts.length > 0) {
+    table.commit(muts);
+    table.logMsg(
+      `${table.playerName(table.me.id)} reshuffled “${srcLabel}” into “${mat.config.label}”`,
+    );
+  }
+}
+
 /** Run a mat button / quick-action id (v4 §5, §9): a registry action on the
- *  mat, a compound (roll-all-dice, flip-all-cards), or macro:<id>. */
+ *  mat, a compound (roll-all-dice, flip-all-cards, reshuffle:<mat label>),
+ *  or macro:<id>. */
 export function runMatButton(actionId: string, mat: MatEntity): void {
   if (actionId.startsWith('macro:')) {
     macroActions()
       .find((a) => a.id === actionId)
       ?.run(mat);
+    return;
+  }
+  if (actionId.startsWith('reshuffle:')) {
+    reshuffleFrom(mat, actionId.slice('reshuffle:'.length));
     return;
   }
   if (actionId === 'roll-all-dice') {
@@ -329,6 +380,7 @@ export function runMatButton(actionId: string, mat: MatEntity): void {
 export function matButtonLabel(actionId: string): string {
   if (actionId === 'roll-all-dice') return 'Roll';
   if (actionId === 'flip-all-cards') return 'Flip all';
+  if (actionId.startsWith('reshuffle:')) return '⟳ reshuffle';
   if (actionId.startsWith('macro:'))
     return macroActions().find((a) => a.id === actionId)?.label ?? actionId;
   return ACTIONS.find((x) => x.id === actionId)?.label ?? actionId;

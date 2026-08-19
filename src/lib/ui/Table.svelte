@@ -50,6 +50,8 @@
   import DeckSearch from './DeckSearch.svelte';
   import Cursors from './Cursors.svelte';
   import CardFaceView from './CardFaceView.svelte';
+  import CardInspector from './CardInspector.svelte';
+  import { inspect, toggleInspectPin } from '../state/inspect.svelte';
   import TokenView from './TokenView.svelte';
   import Palette from './Palette.svelte';
   import LogPanel from './LogPanel.svelte';
@@ -300,10 +302,16 @@
       table.toggleSelect(ent.id);
       return;
     }
-    // ⇧-drag starting on a MAT moves the mat itself, like its handle would
-    // (M17); ⇧-drag on the felt still pans
+    // ⇧-drag starting on a STACK pulls its top item (v5 — plain drag moves
+    // the whole pile); on any other mat ⇧-drag moves the mat, like its
+    // handle would (M17). ⇧-drag on the felt still pans.
     if (e.shiftKey && ent.kind === 'mat' && !ent.locked) {
       e.stopPropagation();
+      if (ent.config.placement.type === 'stack') {
+        const top = topStacked(table.state, ent);
+        if (top) startGhostDrag(e, top.id, ent.id);
+        return;
+      }
       beginEntityDrag(e, ent);
       return;
     }
@@ -317,15 +325,14 @@
       return;
     }
     table.select([ent.id]); // plain click replaces the selection
-    // the body of a pile always takes the top STACKED item; the handle
-    // (or ⇧-drag) moves the pile
+    // the body of a pile drags the WHOLE pile (v5 — matches physical
+    // intuition); ⇧-drag or the d key / hover button takes the top item
     if (ent.kind === 'mat' && ent.config.placement.type === 'stack') {
-      const top = topStacked(table.state, ent);
-      if (top) startGhostDrag(e, top.id, ent.id);
+      beginEntityDrag(e, ent);
       return;
     }
-    // fan/collapsed mats have no body-drag either (their cards ghost-drag
-    // via the fan slots; the mat itself moves by its handle)
+    // fan/collapsed mats have no body-drag (their cards ghost-drag via the
+    // fan slots; the mat itself moves by its handle)
     if (ent.kind === 'mat') return;
     beginEntityDrag(e, ent);
   }
@@ -774,13 +781,18 @@
   };
 
   /** Macros take no selection; every other action arrives via actionsFor(sel)
-   *  and therefore has one. */
-  function runAction(a: UiAction, sel: Entity | null) {
+   *  and therefore has one. `n` is the count prefix (v5): actions marked
+   *  countable 'repeat' compose n times, others receive it via args. */
+  function runAction(a: UiAction, sel: Entity | null, n = 1) {
     if (a.needsMat) {
       if (sel) beginSend(a, sel);
       return;
     }
-    a.run(sel as Entity);
+    if (n > 1 && a.countable === 'repeat' && a.muts && sel) {
+      commitAll(a.muts, Array(n).fill(sel));
+      return;
+    }
+    a.run(sel as Entity, n > 1 ? { n } : undefined);
   }
 
   function onMenu(e: PointerEvent | MouseEvent, ent: Entity) {
@@ -971,7 +983,7 @@
     const t = hoverTarget;
     if (!t) return null;
     if (t.kind === 'mat' && t.config.placement.type === 'stack' && matItems(table.state, t).length > 1)
-      return 'drag = take one · ⇧-drag or bottom handle moves the pile';
+      return 'drag moves the pile · ⇧-drag takes one · type 5 d = draw 5';
     return null;
   });
 
@@ -1209,6 +1221,16 @@
     table.net?.sendPointer(p.x, p.y);
   }
 
+  // vim-style count prefix (v5): type a number, then an action key —
+  // `5 d` draws five, `3 D` duplicates three. Cleared by Esc or timeout.
+  let pendingCount = $state('');
+  let countTimer: ReturnType<typeof setTimeout> | undefined;
+  function setCount(s: string) {
+    pendingCount = s;
+    clearTimeout(countTimer);
+    if (s) countTimer = setTimeout(() => (pendingCount = ''), 3000);
+  }
+
   // ---- keyboard ----
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape') {
@@ -1219,6 +1241,8 @@
       paletteOpen = false;
       referenceOpen = false;
       table.pendingSend = null;
+      inspect.pinnedId = null;
+      setCount('');
       table.select([]);
       return;
     }
@@ -1230,6 +1254,17 @@
       return;
     }
     if (paletteOpen) return; // palette handles its own keys
+    // pin/unpin the card inspector on whatever the pointer is over
+    if (e.key === 'v' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      toggleInspectPin(inspect.hoverId);
+      return;
+    }
+    // count prefix digits accumulate until an action key spends them
+    if (/^[0-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey && !table.pendingSend) {
+      setCount((pendingCount + e.key).slice(0, 3));
+      e.preventDefault();
+      return;
+    }
 
     // pending send-to: the next letter picks the target mat
     if (table.pendingSend) {
@@ -1255,6 +1290,7 @@
     // a live multi-selection takes the keys (f flips all, x deletes all…)
     const selEnts = selectionEntities();
     if (selEnts.length > 1) {
+      setCount('');
       const a = actionForKeyMulti(e.key, selEnts);
       if (a) {
         e.preventDefault();
@@ -1265,9 +1301,11 @@
     }
     const sel = selectionNow();
     const action = actionForKey(e.key, sel);
+    const n = Math.max(1, parseInt(pendingCount || '1', 10));
+    setCount('');
     if (action && sel) {
       e.preventDefault();
-      runAction(action, sel);
+      runAction(action, sel, n);
     }
   }
 
@@ -1350,10 +1388,13 @@
   <QuickActions />
   <Roster />
   <HandTray onCardGrab={(e, id, matId) => startGhostDrag(e, id, matId)} />
+  <CardInspector />
   <LogPanel />
 
   {#if table.pendingSend}
     <div class="sendhint">send to… press a mat letter (h = hand, Esc cancels)</div>
+  {:else if pendingCount}
+    <div class="sendhint">×{pendingCount} — now an action key (d = draw {pendingCount}…)</div>
   {/if}
 
   {#if band && (Math.abs(band.x1 - band.x0) > 4 || Math.abs(band.y1 - band.y0) > 4)}
@@ -1508,7 +1549,8 @@
     opacity: 1;
     box-shadow: 0 0 10px var(--accent);
   }
-  /* sits flush against the entity's top edge (no gap to cross) */
+  /* the padding keeps the hover path unbroken while lifting the buttons
+     clear of the count badge at the entity's top-right (v5) */
   .hoverbar {
     position: fixed;
     z-index: 250001;
@@ -1516,7 +1558,7 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    padding-bottom: 0;
+    padding-bottom: 14px;
   }
   .buttons {
     display: flex;
