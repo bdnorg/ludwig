@@ -141,6 +141,9 @@
   function cardFace(c: CardEntity) {
     return faceVisible(table.state, c, me) ? c.config.front : null;
   }
+
+  // actor-colored ring when a remote commit touched this entity (v5)
+  const flash = $derived(table.flashes[entity.id]);
 </script>
 
 {#if !(mat && !canSeeExistence(mat, me))}
@@ -290,6 +293,11 @@
     {/if}
     {#if entity.annotation}
       <span class="anno" title={entity.annotation}>📝</span>
+    {/if}
+    {#if flash}
+      {#key flash.until}
+        <div class="flashring" style:--fc={flash.color}></div>
+      {/key}
     {/if}
     {#if showHandles}
       <!-- ONE handle, bottom-center (M17) — the hover-button bar owns the top -->
@@ -484,6 +492,29 @@
   }
   .matbtns button:hover {
     border-color: var(--accent);
+  }
+  /* actor-colored change flash (v5): fades over the store's FLASH_MS */
+  .flashring {
+    position: absolute;
+    inset: -5px;
+    border-radius: 10px;
+    pointer-events: none;
+    z-index: 5;
+    box-shadow:
+      0 0 0 3px var(--fc),
+      0 0 12px 2px var(--fc);
+    animation: flashfade 2s ease-out forwards;
+  }
+  @keyframes flashfade {
+    from {
+      opacity: 1;
+    }
+    60% {
+      opacity: 0.8;
+    }
+    to {
+      opacity: 0;
+    }
   }
   /* annotation marker: hover for the text, edit via the context menu */
   .anno {

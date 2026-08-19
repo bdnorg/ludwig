@@ -56,8 +56,12 @@ export class TableStore implements OpCtx {
   /** current table zoom, published by the Table component for pointer math */
   uiScale = $state(1);
   /** a needsMat action is waiting for a mat letter (shows letter badges);
-   *  applies to the whole selection it was invoked with */
-  pendingSend = $state<{ actionId: string; selIds: string[] } | null>(null);
+   *  applies to the whole selection it was invoked with. `n` carries the
+   *  count prefix ("3 s" sends the top 3, v5). */
+  pendingSend = $state<{ actionId: string; selIds: string[]; n?: number } | null>(null);
+  /** LOCAL actor-colored highlights on remotely-changed entities (v5):
+   *  entity id -> who touched it; entries expire after FLASH_MS */
+  flashes = $state<Record<string, { color: string; until: number }>>({});
   /** LOCAL selection — ids of selected entities, never synced */
   selected = $state<string[]>([]);
 
@@ -214,7 +218,31 @@ export class TableStore implements OpCtx {
     applyMutations(this.state, muts);
     for (const m of muts)
       if (m.t === 'put' || m.t === 'del') delete this.dragPos[m.t === 'put' ? m.entity.id : m.id];
+    this.flashRemote(muts);
     this.saveSoon();
+  }
+
+  /** Actor-colored flash on what a remote commit touched (v5): glanceable
+   *  "who did that" — local rendering only, nothing travels. */
+  private static readonly FLASH_MS = 2000;
+  private flashRemote(muts: Mutation[]): void {
+    const now = Date.now();
+    let any = false;
+    for (const m of muts) {
+      if (m.t !== 'put') continue;
+      const actor = m.entity.version.actor;
+      if (actor === this.me.id) continue;
+      const color = this.players[actor]?.color;
+      if (!color) continue;
+      this.flashes[m.entity.id] = { color, until: now + TableStore.FLASH_MS };
+      any = true;
+    }
+    if (any)
+      setTimeout(() => {
+        const t = Date.now();
+        for (const [id, f] of Object.entries(this.flashes))
+          if (f.until <= t) delete this.flashes[id];
+      }, TableStore.FLASH_MS + 100);
   }
 
   receiveSnapshot(snap: TableState): void {
