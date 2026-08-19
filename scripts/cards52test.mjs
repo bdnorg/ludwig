@@ -16,10 +16,37 @@ await page.goto('http://localhost:5173/');
 await page.evaluate(() => localStorage.clear());
 await page.reload();
 await page.fill('input[placeholder="e.g. Beth"]', 'Mac');
+// commit the name BEFORE clicking on: the first blur inserts the
+// "Playing as" select, shifting the layout mid-click (M20 lobby)
+await page.keyboard.press('Tab');
+await page.waitForTimeout(300);
+
+// M20: color swatches beside the name — pick one, it saves with the identity
+const swCount = await page.locator('.colorrow .sw').count();
+ok(swCount === 8, `lobby offers 8 color swatches (got ${swCount})`);
+const sw = page.locator('.colorrow .sw').nth(2); // PLAYER_COLORS[2] = #48b265
+await sw.click();
+await page.waitForTimeout(200);
+await sw.click(); // idempotent second click in case layout was still moving
+const savedPlayer = await page.evaluate(() =>
+  JSON.parse(localStorage.getItem('ludwig:player') ?? 'null'),
+);
+ok(savedPlayer?.color === '#48b265', `swatch click saved the color (${savedPlayer?.color})`);
+ok(
+  await sw.evaluate((el) => el.classList.contains('on')),
+  'chosen swatch wears the selected ring',
+);
+
 await page.click('.tmpl:has-text("52-card deck")');
 await page.click('button.primary:has-text("Start a new table")');
 await page.waitForSelector('.viewport');
 await settle();
+
+// the chosen color follows onto the table: my roster chip dot wears it
+const dotColor = await page.evaluate(
+  () => getComputedStyle(document.querySelector('.roster .player .dot')).backgroundColor,
+);
+ok(dotColor === 'rgb(72, 178, 101)', `roster dot wears the chosen color (${dotColor})`);
 
 const room = await page.evaluate(() => location.hash.replace('#/t/', ''));
 const state = () => page.evaluate((r) => JSON.parse(localStorage.getItem(`ludwig:table:${r}`)), room);

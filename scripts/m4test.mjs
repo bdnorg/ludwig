@@ -307,6 +307,32 @@ s = await state();
 const zoneItems = Object.values(s.entities).filter((e) => e.parent === zone.id);
 ok(zoneItems.length === 2, `s+p sent the deck's top card to the Play area mat (${zoneItems.length} items)`);
 
+// M20: count prefix on send — 3 s + letter sends the top 3 in ONE commit
+const deckBefore3 = s.entities[deck.id].state.order.length;
+const zoneBefore3 = zoneItems.length;
+await page.mouse.move(deck.pos.x + 36, deck.pos.y + 50 + TOOLBAR);
+await page.keyboard.press('3');
+await page.keyboard.press('s');
+await page.waitForTimeout(200);
+const hint3 = await page.evaluate(() => document.querySelector('.sendhint')?.textContent);
+ok(hint3?.includes('top 3'), `send hint carries the count ("${hint3?.trim()}")`);
+await page.keyboard.press('p');
+await settle();
+s = await state();
+ok(
+  s.entities[deck.id].state.order.length === deckBefore3 - 3 &&
+    Object.values(s.entities).filter((e) => e.parent === zone.id).length === zoneBefore3 + 3,
+  `3 s + p sent the deck's top 3 to the Play area (deck ${deckBefore3} → ${s.entities[deck.id].state.order.length})`,
+);
+await page.click('.toolbar button:has-text("undo")');
+await settle();
+s = await state();
+ok(
+  s.entities[deck.id].state.order.length === deckBefore3 &&
+    Object.values(s.entities).filter((e) => e.parent === zone.id).length === zoneBefore3,
+  'one undo returned all 3 to the deck',
+);
+
 // M8: command palette opens on Space and lists actions for hovered entity
 await page.mouse.move(deck.pos.x + 36, deck.pos.y + 50 + TOOLBAR);
 await page.keyboard.press(' ');

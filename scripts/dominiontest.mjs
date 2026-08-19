@@ -13,6 +13,10 @@ await page.goto('http://localhost:5173/');
 await page.evaluate(() => localStorage.clear());
 await page.reload();
 await page.fill('input[placeholder="e.g. Beth"]', 'Dom');
+// commit the name BEFORE clicking a tile: the first blur inserts the
+// "Playing as" select, shifting the gallery mid-click (M20 lobby)
+await page.keyboard.press('Tab');
+await page.waitForTimeout(300);
 await page.click('.tmpl:has-text("Dominion")');
 await page.click('button.primary:has-text("Start a new table")');
 await page.waitForSelector('.viewport');
@@ -41,6 +45,67 @@ const villageVisible = await page.evaluate(() =>
   [...document.querySelectorAll('.face .title')].some((t) => t.textContent === 'Village'),
 );
 ok(villageVisible, 'Village supply pile renders its face-up top card');
+
+// M20: inspector panel — hover a face-up pile opens it; v pins it, then the
+// header bar moves it, the corner grip resizes it, and geometry persists
+const village = decks.find((d) => d.config.label === 'Village');
+await page.mouse.move(village.pos.x + 36, village.pos.y + 50 + TOOLBAR);
+await page.waitForSelector('.inspector', { timeout: 3000 });
+ok(true, 'hovering a face-up pile opened the inspector');
+await page.keyboard.press('v');
+await page.waitForSelector('.inspector.pinned', { timeout: 2000 });
+const chrome = await page.evaluate(() => ({
+  bar: !!document.querySelector('.inspector.pinned .bar'),
+  grip: !!document.querySelector('.inspector.pinned .grip'),
+}));
+ok(chrome.bar && chrome.grip, 'pinned inspector shows the drag bar and resize grip');
+
+// drag the bar left+down: the panel follows the pointer delta
+const panelBB = await page.locator('.inspector').boundingBox();
+const barBB = await page.locator('.inspector .bar').boundingBox();
+const barC = { x: barBB.x + barBB.width / 2, y: barBB.y + barBB.height / 2 };
+await page.mouse.move(barC.x, barC.y);
+await page.mouse.down();
+await page.mouse.move(barC.x - 400, barC.y + 150, { steps: 8 });
+await page.mouse.up();
+const moved = await page.locator('.inspector').boundingBox();
+ok(
+  Math.abs(moved.x - (panelBB.x - 400)) < 8 && Math.abs(moved.y - (panelBB.y + 150)) < 8,
+  `bar drag moved the panel (${Math.round(panelBB.x)},${Math.round(panelBB.y)} → ${Math.round(moved.x)},${Math.round(moved.y)})`,
+);
+
+// drag the grip right: the panel widens by the pointer delta
+const gripBB = await page.locator('.inspector .grip').boundingBox();
+const gripC = { x: gripBB.x + gripBB.width / 2, y: gripBB.y + gripBB.height / 2 };
+await page.mouse.move(gripC.x, gripC.y);
+await page.mouse.down();
+await page.mouse.move(gripC.x + 80, gripC.y, { steps: 6 });
+await page.mouse.up();
+const resized = await page.locator('.inspector').boundingBox();
+ok(
+  Math.abs(resized.width - (moved.width + 80)) < 8,
+  `grip drag widened the panel (${Math.round(moved.width)} → ${Math.round(resized.width)})`,
+);
+
+// geometry persists per browser under ludwig:inspector (default w was 210)
+const savedPanel = await page.evaluate(() =>
+  JSON.parse(localStorage.getItem('ludwig:inspector') ?? 'null'),
+);
+ok(
+  savedPanel &&
+    Math.abs(savedPanel.x - moved.x) < 8 &&
+    Math.abs(savedPanel.y - moved.y) < 8 &&
+    Math.abs(savedPanel.w - 290) < 4,
+  `panel geometry persisted (${JSON.stringify(savedPanel)})`,
+);
+
+// v toggles the pin off again (Escape unpins too)
+await page.keyboard.press('v');
+await page.waitForTimeout(150);
+ok(
+  await page.evaluate(() => !document.querySelector('.inspector.pinned')),
+  'v unpinned the inspector',
+);
 
 // "buy" (v5): ⇧-drag the top Copper off the supply — should land face up
 const copper = decks.find((d) => d.config.label === 'Copper');
@@ -104,17 +169,38 @@ s = await state();
 const discarded = s.entities[discard1.id].state.order.length;
 ok(discarded === 2 && (await deck1Left()) === 3, `discarded 2 to Discard 1 (deck 3, discard ${discarded})`);
 
-const reshuffleBtn = page.locator(`[data-entity-id="${deck1.id}"] .matbtns button`);
-ok(
-  (await reshuffleBtn.textContent()).includes('reshuffle'),
-  'Deck 1 renders its ⟳ reshuffle button',
+// M20: each Deck carries TWO buttons — ⟳ reshuffle and Draw 5
+const btnLabels = await page.$$eval(`[data-entity-id="${deck1.id}"] .matbtns button`, (els) =>
+  els.map((b) => b.textContent.trim()),
 );
+ok(
+  btnLabels.length === 2 &&
+    btnLabels.some((t) => t.includes('reshuffle')) &&
+    btnLabels.includes('Draw 5'),
+  `Deck 1 renders both buttons (${btnLabels.join(' | ')})`,
+);
+const reshuffleBtn = page.locator(`[data-entity-id="${deck1.id}"] .matbtns button`, {
+  hasText: 'reshuffle',
+});
 await reshuffleBtn.click();
 await settle();
 s = await state();
 ok(
   s.entities[discard1.id].state.order.length === 0 && (await deck1Left()) === 5,
   `⟳ reshuffled Discard 1 into Deck 1 (deck ${s.entities[deck1.id].state.order.length}, discard ${s.entities[discard1.id].state.order.length})`,
+);
+
+// M20: the Draw 5 button empties the 5-card deck into my hand — the 5 drawn
+// earlier by the count prefix are still there, so the hand totals 10
+await page.click(`[data-entity-id="${deck1.id}"] .matbtns button:has-text("Draw 5")`);
+await settle();
+s = await state();
+const handNow = Object.values(s.entities).filter(
+  (e) => e.kind === 'card' && e.parent === hand.id,
+).length;
+ok(
+  handNow === 10 && (await deck1Left()) === 0,
+  `Draw 5 button drew 5 more to my hand (hand ${handNow}, deck ${await deck1Left()})`,
 );
 
 await browser.close();

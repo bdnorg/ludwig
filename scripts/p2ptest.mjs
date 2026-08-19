@@ -10,26 +10,29 @@ const URL = `${BASE}#/t/${ROOM}`;
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 
-async function makePeer(name) {
+async function makePeer(name, color = '#3d9be4') {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   page.on('console', (m) => {
     if (m.type() === 'error') console.log(`[${name} console.error]`, m.text());
   });
   await page.goto(BASE);
-  await page.evaluate((n) => {
-    localStorage.setItem(
-      'ludwig:player',
-      JSON.stringify({ id: 'p_' + n, name: n, color: '#3d9be4' }),
-    );
-  }, name);
+  await page.evaluate(
+    ([n, c]) => {
+      localStorage.setItem(
+        'ludwig:player',
+        JSON.stringify({ id: 'p_' + n, name: n, color: c }),
+      );
+    },
+    [name, color],
+  );
   await page.goto(URL);
   await page.waitForSelector('.viewport');
   return page;
 }
 
 const alice = await makePeer('alice');
-const bob = await makePeer('bob');
+const bob = await makePeer('bob', '#e4573d'); // distinct color: attribution is asserted below
 
 // wait for the mesh: each roster should show 2 players
 const rosterCount = (p) => p.evaluate(() => document.querySelectorAll('.roster .player').length);
@@ -53,8 +56,28 @@ await alice.click('.menu button:has-text("52-card deck")');
 await bob.waitForSelector('[data-drop^="mat:mat_"]', { timeout: 15000 });
 console.log('PASS: deck created by alice appeared for bob');
 
-// bob draws two cards by double-clicking the deck; check counts on both sides
+// bob draws two cards by double-clicking the deck; check counts on both sides.
+// M20 attribution: the moment bob's commit lands, alice's view flashes the
+// touched entities in bob's color — arm the wait BEFORE bob acts (2s lifetime)
+const flashPromise = alice.waitForSelector('.flashring', { timeout: 20000 });
 await bob.dblclick('[data-drop^="mat:mat_"]');
+let flashStyle = null;
+try {
+  const flashEl = await flashPromise;
+  flashStyle = (await flashEl.getAttribute('style')) ?? '';
+} catch {
+  /* no flash appeared */
+}
+console.log(
+  flashStyle !== null
+    ? "PASS: bob's change flashed on alice's view (.flashring)"
+    : 'FAIL: no .flashring appeared for alice after bob drew',
+);
+console.log(
+  flashStyle !== null && flashStyle.includes('#e4573d')
+    ? "PASS: flash ring carries bob's color"
+    : `FAIL: flash ring style lacks bob's color (${flashStyle})`,
+);
 await bob.dblclick('[data-drop^="mat:mat_"]');
 await alice.waitForFunction(
   () => document.querySelector('[data-drop^="mat:mat_"] .count')?.textContent === '50',
@@ -75,6 +98,30 @@ const aliceHandCards = await alice.evaluate(() => {
 console.log(`INFO: honor-system — alice's state does hold bob's ${aliceHandCards} card ids (expected; renderer hides faces)`);
 const aliceTray = await alice.evaluate(() => document.querySelectorAll('.tray .slot').length);
 console.log(aliceTray === 0 ? 'PASS: alice tray shows none of bob\'s cards' : `FAIL: alice tray has ${aliceTray}`);
+
+// M20: cursor trails — while bob's pointer sweeps the felt, alice renders
+// fading .dot trail elements behind his cursor (roster dots are spans; the
+// trail is a div, so match the tag)
+let sweeping = true;
+const sweep = (async () => {
+  for (let i = 0; i < 120 && sweeping; i++) {
+    await bob.mouse.move(200 + (i % 20) * 40, 350 + (i % 7) * 30, { steps: 2 });
+    await new Promise((r) => setTimeout(r, 50));
+  }
+})();
+let dotSeen = true;
+try {
+  await alice.waitForSelector('div.dot', { timeout: 15000 });
+} catch {
+  dotSeen = false;
+}
+sweeping = false;
+await sweep;
+console.log(
+  dotSeen
+    ? "PASS: bob's cursor left a fading trail of dots on alice's felt"
+    : 'FAIL: no cursor-trail dots rendered for alice',
+);
 
 // M11: bob's hand is an ordinary on-table mat for alice — visible, backs only
 const bobHandForAlice = await alice.evaluate(() => {

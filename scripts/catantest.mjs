@@ -12,6 +12,10 @@ await page.goto('http://localhost:5173/');
 await page.evaluate(() => localStorage.clear());
 await page.reload();
 await page.fill('input[placeholder="e.g. Beth"]', 'Cat');
+// commit the name BEFORE clicking a tile: the first blur inserts the
+// "Playing as" select, shifting the gallery mid-click (M20 lobby)
+await page.keyboard.press('Tab');
+await page.waitForTimeout(300);
 await page.click('.tmpl:has-text("Catan")');
 await page.click('button.primary:has-text("Start a new table")');
 await page.waitForSelector('.viewport');
