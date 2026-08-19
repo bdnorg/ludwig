@@ -5,7 +5,7 @@
 import type { CardEntity, CardFace, Pos } from './types';
 import type { Mutation } from './reducers';
 import type { OpCtx } from './ops';
-import { makeMat, matPresets } from './mats';
+import { makeMat, matPresets, type MatOpts } from './mats';
 import { newId } from './types';
 import { shuffled } from './rng';
 import { CARD_W, CARD_H } from './cards52';
@@ -21,6 +21,11 @@ export interface CardSpec {
   center?: string;
   color?: string; // title/accent color
   image?: string; // optional art URL (used instead of text)
+  /** at-a-glance chips on the small face ("+1 Card", "$2"); body text then
+   *  only shows in the inspector (v5) */
+  badges?: string[];
+  /** named numeric values (coin, vp…) — mats can show sums (v4 §4) */
+  values?: Record<string, number>;
   count?: number; // copies in the deck (default 1)
 }
 
@@ -28,6 +33,9 @@ export interface CardSetSpec {
   name: string; // deck label
   facePolicy?: 'down' | 'up'; // default 'down'
   shuffle?: boolean; // default true
+  /** extra mat config for the deck mat itself — buttons, groups, showSum…
+   *  (v5: a cardset's mat is configurable like any other) */
+  mat?: Partial<MatOpts>;
   cards: CardSpec[];
 }
 
@@ -61,6 +69,7 @@ export function buildCardSet(ctx: OpCtx, spec: CardSetSpec, pos: Pos): Mutation[
         center: c.center,
         color: c.color,
         image: c.image,
+        badges: c.badges,
       };
       const card: CardEntity = {
         id: newId('card'),
@@ -69,7 +78,7 @@ export function buildCardSet(ctx: OpCtx, spec: CardSetSpec, pos: Pos): Mutation[
         parent: deckId,
         pos: { x: 0, y: 0, z: 0, rot: 0 },
         locked: false,
-        config: { front, back: {}, w: CARD_W, h: CARD_H },
+        config: { front, back: {}, w: CARD_W, h: CARD_H, values: c.values },
         state: { faceUp: false },
       };
       ids.push(card.id);
@@ -80,6 +89,7 @@ export function buildCardSet(ctx: OpCtx, spec: CardSetSpec, pos: Pos): Mutation[
     (spec.facePolicy ?? 'down') === 'up' ? matPresets.pile(spec.name) : matPresets.deck(spec.name);
   const deck = makeMat(ctx.next(), pos, {
     ...preset,
+    ...spec.mat,
     id: deckId,
     order: spec.shuffle === false ? ids : shuffled(ids),
   });

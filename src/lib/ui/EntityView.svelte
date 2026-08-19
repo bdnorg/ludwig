@@ -15,6 +15,7 @@
     sumValue,
   } from '../model/mats';
   import { matButtonLabel, runMatButton } from './actions';
+  import { setInspectHover } from '../state/inspect.svelte';
   import Self from './EntityView.svelte';
   import CardFaceView from './CardFaceView.svelte';
   import NoteView from './NoteView.svelte';
@@ -121,8 +122,19 @@
   let hoverSelf = $state(false);
   function onOver(e: PointerEvent) {
     hoverSelf = (e.target as Element).closest?.('[data-entity-id]') === el;
+    if (!hoverSelf) return;
+    // feed the inspector (v5): the card under the pointer — a loose card,
+    // a fan slot's card, or a stack's top card
+    if (entity.kind === 'card') {
+      setInspectHover(entity.id);
+    } else if (mat) {
+      const slotId = (e.target as Element).closest?.('[data-card-id]')?.getAttribute('data-card-id');
+      const topCard = top?.kind === 'card' ? top.id : null;
+      setInspectHover(slotId ?? topCard);
+    }
   }
   function onOut() {
+    if (hoverSelf) setInspectHover(null);
     hoverSelf = false;
   }
 
@@ -185,6 +197,7 @@
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class="fanslot"
+                data-card-id={child.id}
                 onpointerdown={(e) => {
                   e.stopPropagation();
                   handlers.onGhostGrab(e, child.id, mat.id);

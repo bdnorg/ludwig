@@ -12,6 +12,7 @@
     privileged,
   } from '../model/mats';
   import CardFaceView from './CardFaceView.svelte';
+  import { setInspectHover } from '../state/inspect.svelte';
 
   let {
     onCardGrab,
@@ -67,6 +68,8 @@
               class="slot"
               data-card-id={card.id}
               onpointerdown={(e) => onCardGrab(e, card.id, mat.id)}
+              onpointerenter={() => setInspectHover(card.id)}
+              onpointerleave={() => setInspectHover(null)}
             >
               <CardFaceView
                 face={faceVisible(table.state, card, me) ? card.config.front : null}

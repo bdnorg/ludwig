@@ -45,6 +45,10 @@ export interface CardFace {
   sub?: string; // bottom line, e.g. cost / type
   color?: string;
   image?: string;
+  /** short at-a-glance chips ("+1 Card", "$2"). When present, the table-size
+   *  face renders title + art + badges ONLY; `body` moves to the inspector's
+   *  detail view (v5 — small faces must be readable at arm's length). */
+  badges?: string[];
 }
 
 // ---- Mats (SPEC §10) --------------------------------------------------

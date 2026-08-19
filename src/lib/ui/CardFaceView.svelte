@@ -5,12 +5,53 @@
     face = null,
     w,
     h,
-  }: { face?: CardFace | null; w: number; h: number } = $props();
+    detail = false,
+    fontScale = 1,
+  }: {
+    face?: CardFace | null;
+    w: number;
+    h: number;
+    /** inspector rendering: flow layout with the full body text */
+    detail?: boolean;
+    /** multiplies every font size (detail view renders crisp, not zoomed) */
+    fontScale?: number;
+  } = $props();
+
+  // badges present → the small face shows title + art + badges only; the
+  // body text belongs to the inspector (v5: readable at arm's length)
+  const summary = $derived(!detail && !!face?.badges?.length);
 </script>
 
 {#if face}
-  <div class="face front" style:width="{w}px" style:height="{h}px" style:color={face.color ?? '#222'}>
-    {#if face.image && (face.title || face.body)}
+  <div
+    class="face front"
+    style:width="{w}px"
+    style:height="{h}px"
+    style:color={face.color ?? '#222'}
+    style:font-size="{16 * fontScale}px"
+  >
+    {#if detail}
+      <div class="detail">
+        {#if face.title || face.corner}<span class="dtitle">{face.title ?? face.corner}</span>{/if}
+        {#if face.image}<img class="dart" src={face.image} alt="" draggable="false" />{/if}
+        {#if face.badges?.length}
+          <div class="dbadges">
+            {#each face.badges as b (b)}<span class="pill">{b}</span>{/each}
+          </div>
+        {/if}
+        {#if face.body}<span class="dbody">{face.body}</span>{/if}
+        {#if face.center && !face.title}<span class="dcenter">{face.center}</span>{/if}
+        {#if face.sub}<span class="dsub">{face.sub}</span>{/if}
+      </div>
+    {:else if summary}
+      <span class="title big">{face.title}</span>
+      {#if face.image}<img class="art" src={face.image} alt="" draggable="false" />{/if}
+      <!-- only a SHORT lone badge ("$2", "3 VP") gets the poker-face size -->
+      <div class="badges" class:solo={face.badges!.length === 1 && face.badges![0].length <= 6}>
+        {#each face.badges ?? [] as b (b)}<span class="bline">{b}</span>{/each}
+      </div>
+      {#if face.sub}<span class="sub">{face.sub}</span>{/if}
+    {:else if face.image && (face.title || face.body)}
       <span class="title">{face.title}</span>
       <img class="art" src={face.image} alt="" draggable="false" />
       <span class="body arted">{face.body}</span>
@@ -72,7 +113,7 @@
   }
   .body.arted {
     top: 41px;
-    font-size: 0.38rem;
+    font-size: 0.38em;
   }
   .corner {
     position: absolute;
@@ -104,11 +145,39 @@
     left: 4px;
     right: 4px;
     text-align: center;
-    font-size: 0.5rem;
+    font-size: 0.5em;
     font-weight: 700;
     line-height: 1.1;
     border-bottom: 1px solid currentColor;
     padding-bottom: 2px;
+  }
+  /* summary face: the title is the biggest thing on the card */
+  .title.big {
+    font-size: 0.56em;
+    letter-spacing: -0.01em;
+  }
+  .badges {
+    position: absolute;
+    top: 42px;
+    bottom: 14px;
+    left: 4px;
+    right: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+  .bline {
+    font-size: 0.5em;
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: center;
+    max-width: 100%;
+  }
+  /* a lone badge ("$2", "3 VP") gets the whole middle, poker-face big */
+  .badges.solo .bline {
+    font-size: 1.1em;
   }
   .body {
     position: absolute;
@@ -116,7 +185,7 @@
     bottom: 14px;
     left: 5px;
     right: 5px;
-    font-size: 0.42rem;
+    font-size: 0.42em;
     line-height: 1.25;
     color: #3a3a40;
     display: flex;
@@ -130,7 +199,70 @@
     bottom: 3px;
     left: 5px;
     right: 5px;
-    font-size: 0.42rem;
+    font-size: 0.42em;
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+  }
+  /* ---- detail (inspector) layout: flows, nothing clipped ---- */
+  .detail {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 4% 5%;
+    gap: 3%;
+  }
+  .dtitle {
+    font-size: 0.62em;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.1;
+    border-bottom: 1px solid currentColor;
+    padding-bottom: 2%;
+  }
+  .dart {
+    width: 100%;
+    height: 18%;
+    flex: none;
+    border-radius: 4px;
+  }
+  .dbadges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 3px;
+  }
+  .pill {
+    font-size: 0.4em;
+    font-weight: 700;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    padding: 0.05em 0.6em;
+    white-space: nowrap;
+  }
+  .dbody {
+    flex: 1;
+    font-size: 0.42em;
+    line-height: 1.35;
+    color: #3a3a40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: pre-wrap;
+    overflow: hidden;
+  }
+  .dcenter {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2em;
+  }
+  .dsub {
+    font-size: 0.42em;
     font-weight: 700;
     display: flex;
     justify-content: space-between;
