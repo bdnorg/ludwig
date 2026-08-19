@@ -10,7 +10,9 @@ const ROSTER_KEY = 'ludwig:players';
 const LAST_KEY = 'ludwig:player';
 const ACTIVE_KEY = 'ludwig:active-player'; // sessionStorage (per-tab)
 
-const COLORS = [
+/** Preset player colors — offered as swatches at join (v5); custom values
+ *  are allowed too, so this is a menu, not a constraint. */
+export const PLAYER_COLORS = [
   '#e4573d', '#3d9be4', '#48b265', '#d9a521',
   '#9b59c9', '#e46fa5', '#2fbdb3', '#8a6d4a',
 ];
@@ -27,7 +29,7 @@ export function newPlayer(): PlayerInfo {
   return {
     id: `p_${crypto.randomUUID().slice(0, 13)}`,
     name: '',
-    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    color: PLAYER_COLORS[Math.floor(Math.random() * PLAYER_COLORS.length)],
   };
 }
 

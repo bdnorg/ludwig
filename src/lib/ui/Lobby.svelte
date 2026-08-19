@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { newRoomCode } from '../roomcode';
-  import { listPlayers, loadPlayer, newPlayer, savePlayer } from '../state/player';
+  import { listPlayers, loadPlayer, newPlayer, PLAYER_COLORS, savePlayer } from '../state/player';
   import { deleteTable, download, listTables, renameTable } from '../state/persist';
   import { requestGamebox, requestImport, requestTemplate, TEMPLATES, type TemplateId } from '../state/templates';
   import { fetchGameboxGallery, type GameboxGalleryEntry } from '../state/gameboxGallery';
@@ -150,6 +150,31 @@
       Your name
       <input placeholder="e.g. Beth" bind:value={player.name} onchange={persistName} maxlength="24" />
     </label>
+    <!-- your color follows you onto the table: cursor, mats, action flashes -->
+    <div class="colorrow" role="group" aria-label="your color">
+      {#each PLAYER_COLORS as c (c)}
+        <button
+          class="sw"
+          class:on={player.color === c}
+          style:background={c}
+          title="play as this color"
+          aria-label="color {c}"
+          onclick={() => {
+            player.color = c;
+            persistName();
+          }}
+        ></button>
+      {/each}
+      <input
+        type="color"
+        value={player.color}
+        title="custom color"
+        oninput={(e) => {
+          player.color = e.currentTarget.value;
+          persistName();
+        }}
+      />
+    </div>
   </div>
 
   <div class="gallery">
@@ -283,6 +308,34 @@
   .who {
     display: flex;
     gap: 0.5rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+  .colorrow {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding-bottom: 0.35rem;
+  }
+  .sw {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    padding: 0;
+    cursor: pointer;
+  }
+  .sw.on {
+    border-color: #fff;
+    box-shadow: 0 0 0 1.5px #111;
+  }
+  .colorrow input[type='color'] {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
   }
   select {
     padding: 0.35rem 0.4rem;
