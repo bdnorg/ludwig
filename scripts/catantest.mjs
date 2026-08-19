@@ -30,7 +30,8 @@ const tiles = Object.values(s.entities).filter(
 );
 ok(tiles.length === 19, `19 hex tiles placed (got ${tiles.length})`);
 
-// pull one road off the red reserve pile (an implicit stack mat since M17)
+// pull one road off the red reserve pile (an implicit stack mat since M17;
+// v5: ⇧-drag takes one — plain drag would move the whole pile)
 const reserve = Object.values(s.entities).find(
   (e) => e.kind === 'mat' && e.config.label === 'Red pieces',
 );
@@ -49,10 +50,12 @@ const stackScreen = {
 };
 const edge = board.config.placement.slots.find((sl) => sl.accepts?.includes('road') && sl.rot !== 0);
 const edgeScreen = { x: board.pos.x + edge.x, y: board.pos.y + edge.y + TOOLBAR };
+await page.keyboard.down('Shift');
 await page.mouse.move(stackScreen.x, stackScreen.y);
 await page.mouse.down();
 await page.mouse.move(edgeScreen.x, edgeScreen.y, { steps: 8 });
 await page.mouse.up();
+await page.keyboard.up('Shift');
 await settle();
 s = await state();
 const placedRoad = Object.values(s.entities).find(
@@ -60,7 +63,7 @@ const placedRoad = Object.values(s.entities).find(
     e.kind === 'token' && e.parent === board.id && (e.config.tags ?? []).includes('road'),
 );
 const roadsLeft = pileItems(s, roadPile).length;
-ok(!!placedRoad, 'dragging the road pile pulled ONE road onto the board');
+ok(!!placedRoad, '⇧-dragging the road pile pulled ONE road onto the board');
 ok(roadsLeft === 14, `reserve pile down to 14 (got ${roadsLeft})`);
 // bar tokens render 0.3× as tall as wide — the snap centers on that shape
 const rhw = placedRoad.config.size / 2;
@@ -74,13 +77,15 @@ const onEdge = board.config.placement.slots.some(
 );
 ok(onEdge, `road snapped to an edge slot with rotation ${placedRoad.pos.rot}°`);
 
-// settlement: pull one onto a vertex — must NOT land on an edge/hex slot
+// settlement: ⇧-pull one onto a vertex — must NOT land on an edge/hex slot
 const setPile = pilesIn(s, reserve).find((p) => pileItems(s, p).length === 5);
 const vertex = board.config.placement.slots.find((sl) => sl.accepts?.includes('building'));
+await page.keyboard.down('Shift');
 await page.mouse.move(reserve.pos.x + setPile.pos.x + 11, reserve.pos.y + setPile.pos.y + 11 + TOOLBAR);
 await page.mouse.down();
 await page.mouse.move(board.pos.x + vertex.x + 6, board.pos.y + vertex.y - 8 + TOOLBAR, { steps: 8 });
 await page.mouse.up();
+await page.keyboard.up('Shift');
 await settle();
 s = await state();
 const placedSet = Object.values(s.entities).find(

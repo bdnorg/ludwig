@@ -309,7 +309,7 @@
       e.stopPropagation();
       if (ent.config.placement.type === 'stack') {
         const top = topStacked(table.state, ent);
-        if (top) startGhostDrag(e, top.id, ent.id);
+        if (top) startGhostDrag(e, top.id, ent.id, { shiftPull: true });
         return;
       }
       beginEntityDrag(e, ent);
@@ -619,9 +619,17 @@
     x: number;
     y: number;
     moved: boolean;
+    /** the ⇧ that STARTED a stack take-one (v5) is the pull gesture itself,
+     *  not the face-invert modifier — ignore it at drop */
+    shiftPull: boolean;
   } | null>(null);
 
-  function startGhostDrag(e: PointerEvent, itemId: string, srcMatId: string | null) {
+  function startGhostDrag(
+    e: PointerEvent,
+    itemId: string,
+    srcMatId: string | null,
+    opts: { shiftPull?: boolean } = {},
+  ) {
     if (e.button !== 0) return;
     e.stopPropagation();
     lastClickedId = itemId;
@@ -633,6 +641,7 @@
       x: e.clientX,
       y: e.clientY,
       moved: false,
+      shiftPull: opts.shiftPull ?? false,
     };
     window.addEventListener('pointermove', onGhostMove);
     window.addEventListener('pointerup', onGhostUp);
@@ -706,6 +715,7 @@
     const w = item.kind === 'card' ? item.config.w : 30;
     const h = item.kind === 'card' ? item.config.h : 30;
     const naturalUp = src ? canSeeFaces(src, table.me.id) : true;
+    const invert = e.shiftKey && !g.shiftPull;
     const rawDrop: Pos = { x: p.x - w / 2, y: p.y - h / 2, z: table.maxZ() + 1, rot: 0 };
     const pos = e.altKey ? rawDrop : rootSnap(rawDrop, item);
     table.commit(
@@ -713,7 +723,7 @@
         table,
         item,
         pos,
-        item.kind === 'card' ? rootEntryFace(naturalUp !== e.shiftKey) : undefined,
+        item.kind === 'card' ? rootEntryFace(naturalUp !== invert) : undefined,
       ),
     );
   }

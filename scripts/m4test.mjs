@@ -37,12 +37,14 @@ const finders = {
 const find = (s, kind) => finders[kind](s);
 const ok = (cond, msg) => console.log(`${cond ? 'PASS' : 'FAIL'}: ${msg}`);
 
-async function drag(from, to, { alt = false } = {}) {
+async function drag(from, to, { alt = false, shift = false } = {}) {
   if (alt) await page.keyboard.down('Alt');
+  if (shift) await page.keyboard.down('Shift');
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   await page.mouse.move(to.x, to.y, { steps: 6 });
   await page.mouse.up();
+  if (shift) await page.keyboard.up('Shift');
   if (alt) await page.keyboard.up('Alt');
 }
 
@@ -138,8 +140,9 @@ ok(
   `timer paused at ${find(s, 'timer').state.elapsedMs}ms`,
 );
 
-// chips (M17): a pile is an implicit stack mat of 20 single chips.
-// Body-drag pulls ONE off; only the bullseye merges it back.
+// chips (M17/v5): a pile is an implicit stack mat of 20 single chips.
+// ⇧-drag pulls ONE off (plain body-drag moves the whole pile since v5);
+// only the bullseye merges it back.
 const inPile = (st) => Object.values(st.entities).filter((e) => e.parent === chip.id);
 const looseTok = (st) =>
   Object.values(st.entities).filter((e) => e.kind === 'token' && e.parent === null);
@@ -148,12 +151,13 @@ ok(inPile(s).length === 20, `chip pile holds 20 single chips (${inPile(s).length
 await drag(
   { x: chip.pos.x + 17, y: chip.pos.y + 17 + TOOLBAR },
   { x: chip.pos.x + 117, y: chip.pos.y + 17 + TOOLBAR },
+  { shift: true },
 );
 await settle();
 s = await state();
 ok(
   inPile(s).length === 19 && looseTok(s).length === 1,
-  'body drag pulled one chip off the pile',
+  '⇧-drag pulled one chip off the pile',
 );
 
 // a plain overlap drop does NOT merge (M17: no implicit merge)
@@ -216,18 +220,48 @@ s = await state();
 card = Object.values(s.entities).find((e) => e.kind === 'card' && e.parent === zone.id);
 ok(card.state.faceUp === true, 'moving within the mat does not re-flip the card');
 
-// stack pull: plain-dragging a deck pulls its top card (face down, hidden faces)
+// v5: plain body-drag on a stack moves the WHOLE pile (undo puts it back)
+const deckPosBefore = { x: deck.pos.x, y: deck.pos.y };
+const looseBeforeMove = Object.values(s.entities).filter(
+  (e) => e.kind === 'card' && e.parent === null,
+).length;
+await drag(
+  { x: deck.pos.x + 36, y: deck.pos.y + 50 + TOOLBAR },
+  { x: deck.pos.x + 116, y: deck.pos.y + 50 + TOOLBAR },
+);
+await settle();
+s = await state();
+const deckMoved = Object.values(s.entities).find((e) => e.id === deck.id);
+ok(
+  Math.abs(deckMoved.pos.x - deckPosBefore.x - 80) < 3 &&
+    Object.values(s.entities).filter((e) => e.kind === 'card' && e.parent === null).length ===
+      looseBeforeMove,
+  `plain body-drag moved the whole pile, pulled nothing (x ${deckPosBefore.x} → ${deckMoved.pos.x})`,
+);
+await page.click('.toolbar button:has-text("undo")');
+await settle();
+s = await state();
+ok(
+  Object.values(s.entities).find((e) => e.id === deck.id).pos.x === deckPosBefore.x,
+  'undo returned the pile to its spot',
+);
+
+// stack pull (v5): ⇧-drag pulls the top card (face down, hidden faces)
 const cardsLooseBefore = Object.values(s.entities).filter(
   (e) => e.kind === 'card' && e.parent === null,
 ).length;
-await drag({ x: deck.pos.x + 36, y: deck.pos.y + 50 + TOOLBAR }, { x: 500, y: 400 + TOOLBAR });
+await drag(
+  { x: deck.pos.x + 36, y: deck.pos.y + 50 + TOOLBAR },
+  { x: 500, y: 400 + TOOLBAR },
+  { shift: true },
+);
 await settle();
 s = await state();
 const loose = Object.values(s.entities).filter((e) => e.kind === 'card' && e.parent === null);
 const pulled = loose.find((c) => Math.abs(c.pos.x + 36 - 500) < 20);
 ok(
   loose.length === cardsLooseBefore + 1 && pulled && pulled.state.faceUp === false,
-  'stack drag pulled top card, face down',
+  '⇧-drag pulled top card, face down',
 );
 
 // undo returns it to the deck
@@ -315,7 +349,10 @@ await page.waitForTimeout(400);
 await page.mouse.move(deck.pos.x + 36, deck.pos.y + 50 + TOOLBAR);
 await page.waitForTimeout(200);
 const hint = await page.evaluate(() => document.querySelector('.gesturehint')?.textContent);
-ok(hint?.includes('take one'), `stack gesture hint shown: "${hint}"`);
+ok(
+  hint?.includes('moves the pile') && hint?.includes('⇧-drag takes one'),
+  `stack gesture hint shown: "${hint}"`,
+);
 
 // M10: hover buttons survive the pointer moving onto them (250ms grace)
 const barBtn = await page.evaluate(() => {
@@ -571,7 +608,12 @@ const infBadge = await page.evaluate(
   deck.id,
 );
 ok(infBadge === '∞', `supply badge shows ∞ (${infBadge})`);
-await drag({ x: deck.pos.x + 36, y: deck.pos.y + 50 + TOOLBAR }, { x: 480, y: 300 + TOOLBAR });
+// v5: pulls come off by ⇧-drag (plain drag would move the supply mat)
+await drag(
+  { x: deck.pos.x + 36, y: deck.pos.y + 50 + TOOLBAR },
+  { x: 480, y: 300 + TOOLBAR },
+  { shift: true },
+);
 await settle();
 s = await state();
 const nAfter = Object.values(s.entities).find((e) => e.id === deck.id).state.order.length;
