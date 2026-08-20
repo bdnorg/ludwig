@@ -14,7 +14,7 @@ import {
 import type { OpCtx } from '../model/ops';
 import { handIdFor, makeMat, makeRootMat, matPresets, ROOT_MAT_ID, rootMat } from '../model/mats';
 import { newId } from '../model/types';
-import { bindTab, loadPlayer } from './player';
+import { bindTab, loadPlayer, savePlayer } from './player';
 import { loadTable, migrate, saveTable } from './persist';
 
 export interface NetLink {
@@ -55,6 +55,12 @@ export class TableStore implements OpCtx {
   posOverrides = $state<Record<string, { x: number; y: number; z: number }>>({});
   /** current table zoom, published by the Table component for pointer math */
   uiScale = $state(1);
+  /** full view transform, published by the Table component (v5 round 3 —
+   *  lets screen chrome park itself in table coordinates) */
+  uiView = $state({ x: 0, y: 0, scale: 1 });
+  /** LOCAL: mat briefly outlined as "the linked one" while hovering an
+   *  autoReshuffle ⟳ chip (v5 round 3) */
+  hintMatId = $state<string | null>(null);
   /** a needsMat action is waiting for a mat letter (shows letter badges);
    *  applies to the whole selection it was invoked with. `n` carries the
    *  count prefix ("3 s" sends the top 3, v5). */
@@ -249,7 +255,47 @@ export class TableStore implements OpCtx {
     migrate(snap); // old exports/peers may still carry pre-M17 shapes
     mergeSnapshot(this.state, snap);
     this.clock = Math.max(this.clock, maxClock(snap));
+    this.autoSeat();
     this.saveSoon();
+  }
+
+  /** Seat kits (v5 round 3): mats grouped `seat <n>` form a kit. Sitting
+   *  down at a table with kits auto-claims the lowest unowned one — the
+   *  joiner commits ownerId on the kit's mats (LWW settles rare races).
+   *  Rejoining players already own their kit, so this is a no-op for them. */
+  autoSeat(): void {
+    const seatOf = (m: MatEntity): number | null => {
+      const g = m.config.groups?.find((s) => /^seat \d+$/.test(s));
+      return g ? Number(g.slice(5)) : null;
+    };
+    const kitMats = Object.values(this.state.entities).filter(
+      (e): e is MatEntity => e.kind === 'mat' && seatOf(e) !== null,
+    );
+    if (kitMats.length === 0) return;
+    if (kitMats.some((m) => m.config.ownerId === this.me.id)) return; // seated
+    const owned = new Set(kitMats.filter((m) => m.config.ownerId).map(seatOf));
+    const free = [...new Set(kitMats.map(seatOf))].filter((n) => !owned.has(n)).sort((a, b) => a! - b!);
+    const seat = free[0];
+    if (seat === undefined) return; // full table — spectate with just a hand
+    const muts: Mutation[] = kitMats
+      .filter((m) => seatOf(m) === seat)
+      .map((m) => {
+        const c = this.clone(m);
+        c.config.ownerId = this.me.id;
+        c.version = this.next();
+        return { t: 'put', entity: c } as Mutation;
+      });
+    this.emit(muts); // setup, not undoable
+    this.logMsg(`${this.playerName(this.me.id)} took seat ${seat}`);
+  }
+
+  /** Change my color at the table (v5 round 3): persists to the identity
+   *  and re-announces to peers so cursors/flashes/labels follow. */
+  setMyColor(color: string): void {
+    this.me.color = color;
+    this.players[this.me.id] = this.profile();
+    savePlayer(this.profile());
+    this.net?.sendProfile();
   }
 
   snapshot(): TableState {

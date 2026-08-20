@@ -26,6 +26,46 @@
   );
   const connectedIds = $derived([...new Set([me, ...Object.values(table.peers)])]);
 
+  // the tray itself is draggable screen chrome (v5 round 3): park it
+  // anywhere; double-click its grip to re-dock bottom-center. Per browser.
+  const TRAY_KEY = 'ludwig:tray';
+  let trayEl: HTMLDivElement | undefined = $state();
+  let trayPos = $state<{ x: number; y: number } | null>(
+    (() => {
+      try {
+        return JSON.parse(localStorage.getItem(TRAY_KEY) ?? 'null');
+      } catch {
+        return null;
+      }
+    })(),
+  );
+  let trayDrag: { dx: number; dy: number } | null = null;
+  function startTrayMove(e: PointerEvent) {
+    if (!trayEl) return;
+    const r = trayEl.getBoundingClientRect();
+    trayDrag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+    e.preventDefault();
+    window.addEventListener('pointermove', onTrayMove);
+    window.addEventListener('pointerup', onTrayUp);
+  }
+  function onTrayMove(e: PointerEvent) {
+    if (!trayDrag) return;
+    trayPos = {
+      x: Math.max(0, Math.min(window.innerWidth - 80, e.clientX - trayDrag.dx)),
+      y: Math.max(0, Math.min(window.innerHeight - 60, e.clientY - trayDrag.dy)),
+    };
+  }
+  function onTrayUp() {
+    trayDrag = null;
+    window.removeEventListener('pointermove', onTrayMove);
+    window.removeEventListener('pointerup', onTrayUp);
+    localStorage.setItem(TRAY_KEY, JSON.stringify(trayPos));
+  }
+  function redock() {
+    trayPos = null;
+    localStorage.removeItem(TRAY_KEY);
+  }
+
   function toggleReveal(mat: MatEntity) {
     const rule = mat.config.visibility.faces === 'public' ? 'owner' : 'public';
     table.update(mat, (m) => {
@@ -39,7 +79,23 @@
 </script>
 
 {#if pinned.length > 0}
-  <div class="tray" data-drop="tray">
+  <div
+    bind:this={trayEl}
+    class="tray"
+    class:floating={trayPos !== null}
+    style:left={trayPos ? `${trayPos.x}px` : undefined}
+    style:top={trayPos ? `${trayPos.y}px` : undefined}
+    data-drop="tray"
+  >
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="grab"
+      title="drag to move the tray · double-click to re-dock"
+      onpointerdown={startTrayMove}
+      ondblclick={redock}
+    >
+      ⠿
+    </div>
     {#each pinned as mat (mat.id)}
       {@const cards = matCards(table.state, mat)}
       {@const priv = privileged(mat, me, connectedIds)}
@@ -97,6 +153,29 @@
     gap: 10px;
     align-items: flex-end;
     z-index: 200000;
+  }
+  /* parked somewhere by its grip: fixed at that spot, fully rounded */
+  .tray.floating {
+    position: fixed;
+    transform: none;
+    bottom: auto;
+  }
+  .tray.floating .pinmat {
+    border-radius: 10px;
+    border-bottom: 1px solid #454f60;
+  }
+  .grab {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+    color: var(--muted);
+    background: rgba(30, 34, 43, 0.92);
+    border: 1px solid #454f60;
+    border-radius: 8px 0 0 8px;
+    cursor: move;
+    user-select: none;
+    touch-action: none;
   }
   .pinmat {
     min-width: 340px;

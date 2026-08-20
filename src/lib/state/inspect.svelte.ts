@@ -12,16 +12,21 @@ export interface InspectorPanel {
   y: number | null;
   /** panel width in px; height follows the card's aspect */
   w: number;
+  /** where the panel parks (v5 round 3): 'screen' stays put while the table
+   *  pans; 'table' tracks a felt spot (tx/ty, table coords) — my view only */
+  space?: 'screen' | 'table';
+  tx?: number;
+  ty?: number;
 }
 
 function loadPanel(): InspectorPanel {
   try {
     const raw = localStorage.getItem(PANEL_KEY);
-    if (raw) return JSON.parse(raw) as InspectorPanel;
+    if (raw) return { space: 'screen', ...(JSON.parse(raw) as InspectorPanel) };
   } catch {
     /* fall through to default */
   }
-  return { x: null, y: null, w: 210 };
+  return { x: null, y: null, w: 210, space: 'screen' };
 }
 
 export const inspect = $state({

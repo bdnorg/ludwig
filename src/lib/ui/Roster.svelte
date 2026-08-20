@@ -1,6 +1,7 @@
 <script lang="ts">
   import { table } from '../state/store.svelte';
   import { canSeeCount, canSeeFaces, handOf, matItems } from '../model/mats';
+  import { PLAYER_COLORS } from '../state/player';
 
   const connectedIds = $derived(
     [...new Set([table.me.id, ...Object.values(table.peers)])].sort(),
@@ -13,15 +14,49 @@
     if (!canSeeCount(h, table.me.id)) return `🂠 ?${revealed ? ' 👁' : ''}`;
     return `🂠 ${matItems(table.state, h).length}${revealed ? ' 👁' : ''}`;
   }
+
+  // clicking MY dot opens a swatch row to change color mid-game (v5 round 3)
+  let picking = $state(false);
 </script>
 
 <div class="roster">
   {#each connectedIds as pid (pid)}
     <div class="player">
-      <span class="dot" style:background={table.players[pid]?.color ?? '#888'}></span>
+      {#if pid === table.me.id}
+        <button
+          class="dot mine"
+          style:background={table.players[pid]?.color ?? '#888'}
+          title="change your color"
+          onclick={() => (picking = !picking)}
+          aria-label="change your color"
+        ></button>
+      {:else}
+        <span class="dot" style:background={table.players[pid]?.color ?? '#888'}></span>
+      {/if}
       <span class="name">{table.playerName(pid)}{pid === table.me.id ? ' (you)' : ''}</span>
       <span class="cards">{handInfo(pid)}</span>
     </div>
+    {#if pid === table.me.id && picking}
+      <div class="swatches">
+        {#each PLAYER_COLORS as c (c)}
+          <button
+            class="sw"
+            style:background={c}
+            aria-label="color {c}"
+            onclick={() => {
+              table.setMyColor(c);
+              picking = false;
+            }}
+          ></button>
+        {/each}
+        <input
+          type="color"
+          value={table.me.color}
+          title="custom color"
+          oninput={(e) => table.setMyColor(e.currentTarget.value)}
+        />
+      </div>
+    {/if}
   {/each}
 </div>
 
@@ -50,6 +85,34 @@
     height: 10px;
     border-radius: 50%;
     flex: none;
+    padding: 0;
+    border: none;
+  }
+  .dot.mine {
+    cursor: pointer;
+    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.35);
+  }
+  .swatches {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 2px 0 2px 17px;
+  }
+  .sw {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    padding: 0;
+    cursor: pointer;
+  }
+  .swatches input[type='color'] {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
   }
   .name {
     max-width: 10rem;

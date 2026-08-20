@@ -31,6 +31,7 @@
     actionForKey,
     actionForKeyMulti,
     commitAll,
+    drawSmart,
     macroActions,
     matCompoundItems,
     runMatButton,
@@ -63,6 +64,7 @@
   // svelte-ignore state_referenced_locally
   table.init(room);
   applyPendingTemplate(table);
+  table.autoSeat(); // claim a seat kit if this table has them (v5 round 3)
 
   onMount(() => {
     const link = connect(table, room);
@@ -79,6 +81,7 @@
   let view = $state({ x: 0, y: 0, scale: 1 });
   $effect(() => {
     table.uiScale = view.scale;
+    table.uiView = { x: view.x, y: view.y, scale: view.scale };
   });
 
   function screenToTable(cx: number, cy: number): { x: number; y: number } {
@@ -748,7 +751,7 @@
     }
     if (ent.kind === 'card') table.commit(ops.flipCard(table, ent));
     else if (ent.kind === 'mat' && ['stack', 'fan'].includes(ent.config.placement.type))
-      table.commit(ops.drawTo(table, ent, table.myHand()));
+      drawSmart(ent);
     else if (ent.kind === 'dice') table.commit(ops.rollDice(table, ent, table.me.id));
   }
 

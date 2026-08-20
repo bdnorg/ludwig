@@ -144,6 +144,23 @@
 
   // actor-colored ring when a remote commit touched this entity (v5)
   const flash = $derived(table.flashes[entity.id]);
+
+  // owner's roster color, shown as a dot beside the label (v5 round 3)
+  const ownerColor = $derived(
+    mat?.config.ownerId ? (table.players[mat.config.ownerId]?.color ?? '#8791a3') : null,
+  );
+
+  // hovering the autoReshuffle ⟳ chip outlines the linked mat (v5 round 3)
+  function hintLinked(on: boolean) {
+    const label = mat?.config.autoReshuffle;
+    if (!label) return;
+    const target = on
+      ? Object.values(table.state.entities).find(
+          (e) => e.kind === 'mat' && e.config.label === label,
+        )
+      : undefined;
+    table.hintMatId = target?.id ?? null;
+  }
 </script>
 
 {#if !(mat && !canSeeExistence(mat, me))}
@@ -157,6 +174,7 @@
     class:hover-self={hoverSelf}
     class:priv-other={privLevel === 'other'}
     class:priv-mine={privLevel === 'mine'}
+    class:hinted={table.hintMatId === entity.id}
     style:left="{pos.x}px"
     style:top="{pos.y}px"
     style:z-index={z}
@@ -214,7 +232,10 @@
             <div class="empty small">{mat.config.label}</div>
           {/if}
           {#if isPrivileged}<span class="eye badge-eye">👁</span>{/if}
-          <span class="label">{matLabel}</span>
+          <span class="label">
+            {#if ownerColor}<span class="odot" style:background={ownerColor}></span>{/if}
+            {matLabel}
+          </span>
         </div>
       {:else}
         <!-- stack: 2+ items always show a second piece peeking out from
@@ -247,7 +268,10 @@
               <span class="count">{mat.config.supply === 'infinite' ? '∞' : stacked.length}</span>
             {/if}
             {#if isPrivileged}<span class="eye badge-eye">👁</span>{/if}
-            <span class="label">{matLabel}</span>
+            <span class="label">
+              {#if ownerColor}<span class="odot" style:background={ownerColor}></span>{/if}
+              {matLabel}
+            </span>
           {/if}
         </div>
       {/if}
@@ -258,6 +282,14 @@
       {/if}
       {#if sum !== null && (sum !== 0 || !mat.config.implicit) && showCount}
         <span class="sumbadge" title="sum of {mat.config.showSum}">Σ {sum}</span>
+      {/if}
+      {#if mat.config.autoReshuffle && view !== 'region'}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <span
+          class="linkchip"
+          title="auto-reshuffles “{mat.config.autoReshuffle}” in when short"
+          onpointerenter={() => hintLinked(true)}
+          onpointerleave={() => hintLinked(false)}>⟳</span>
       {/if}
       {#if mat.config.buttons?.length}
         <div class="matbtns">
@@ -492,6 +524,34 @@
   }
   .matbtns button:hover {
     border-color: var(--accent);
+  }
+  /* owner's color rides the label (v5 round 3) */
+  .odot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-right: 3px;
+    vertical-align: 6%;
+  }
+  /* the deck↔discard link: chip on the deck, outline on the linked mat */
+  .linkchip {
+    position: absolute;
+    bottom: -9px;
+    left: -8px;
+    background: var(--panel);
+    border: 1px solid #454f60;
+    border-radius: 10px;
+    padding: 0 5px;
+    font-size: 0.62rem;
+    color: var(--accent);
+    z-index: 2;
+    cursor: help;
+  }
+  .entity.hinted {
+    outline: 2px solid var(--accent);
+    outline-offset: 5px;
+    border-radius: 8px;
   }
   /* actor-colored change flash (v5): fades over the store's FLASH_MS */
   .flashring {
