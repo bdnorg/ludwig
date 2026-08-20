@@ -301,15 +301,32 @@ from empty sweeps + shuffles + draws in one motion. Deferred until felt.
    **`draw:<n>` button presets** ✅ (Dominion decks ship `Draw 5`); the
    count prefix remains the arbitrary-n one-off at runtime.
 
-## Still open (waiting on you)
+## Decisions (2026-08 round 3) — landed ✅
 
-1. Seat kits (§4): claim by click, or auto-claim in join order?
-2. autoReshuffle (§6) — RECOMMENDATION: config on the deck mat,
-   `autoReshuffle: '<discard label>'`: a draw that finds the deck empty
-   runs the reshuffle compound first, then completes. Affordance: a small
-   ⟳ chip on the deck edge; hovering it outlines the linked mat, showing
-   the pairing. No new kind — it composes drawTo + the reshuffle
-   compound, and the config IS the deck↔discard connection. A dedicated
-   "deck+discard" primitive stays unnecessary unless this proves clumsy.
-3. Anchored buttons (§3 `anchor: n|s|e|w`) and item buttons: now, or
-   after the next playtest?
+1. **Badges and values are authored explicitly, never extracted from
+   text** ✅ — the Dominion generator hand-writes every chip.
+2. **Card layouts: per-size field lists** ✅ — `layout: { small: [...],
+   large: [...] }` on a face names which fields render, in order
+   (title / art / badges / body / sub / center). Omitted size = default.
+3. **Inspector parks in either space** ✅ — pinned, a 📌 toggle switches
+   screen-parked (stays put while the table pans) vs felt-parked (tracks
+   a table spot, your view only). Position, size, and mode persist.
+4. **The hand tray is draggable chrome** ✅ — ⠿ grip moves it anywhere
+   (persisted); double-click re-docks bottom-center. Unpinning still
+   returns the hand to the felt as an ordinary fan mat.
+5. **Seat kits auto-assign on join** ✅ — mats grouped `seat <n>` form a
+   kit; sitting down claims the lowest unowned one (rejoins keep theirs;
+   a full table just means you spectate with a hand). Colors are chosen
+   at join and changeable any time via your roster dot. Owned mats show
+   the owner's color dot on their label.
+6. **autoReshuffle** ✅ — deck config `autoReshuffle: '<label>'`; a draw
+   that runs short sweeps the linked mat in and shuffles first, one
+   commit. The ⟳ chip on the deck marks the link; hovering it outlines
+   the linked mat. Dominion's decks use it.
+
+## Still open
+
+1. **Placeable mat buttons** (approved in principle): per-button position
+   on the mat, moved via the button's context menu. Scheduled as its own
+   pass (M22) — placement model (anchor points vs free x/y), drag UX,
+   and gamebox syntax to be designed then.

@@ -81,11 +81,16 @@ the checkboxes as work lands.
       on remotely-changed entities + fading cursor trails, count prefix on
       send (`3 s` + letter), `draw:<n>` button presets (Dominion decks got
       `Draw 5`), MatSettings parses compound ids unsplit.
-- [ ] (design-heavy, WAIT for user's calls — PROPOSAL v5 "Still open"):
-      seat kits + `claim-seat:<group>` + owner-colored mat chrome;
-      `autoReshuffle: '<label>'` on decks (recommendation written up);
-      anchored + item buttons; `showSum` list form; inspector touch
-      gesture.
+- [x] M21 v5 round 3 — DONE (committed): explicit badges (never derived
+      from text), per-size card `layout` field lists, inspector screen/felt
+      parking toggle, draggable hand tray (⠿ grip), seat kits auto-claimed
+      on join (`groups: ['seat N']`, `table.autoSeat()`), roster color
+      change (`setMyColor` + sendProfile), `autoReshuffle: '<label>'` deck
+      config with ⟳ link chip + `drawSmart` (one commit), owner color dot
+      on mat labels. Dominion box carries seats + autoReshuffle.
+- [ ] M22 placeable mat buttons (approved; design the placement model
+      first — PROPOSAL v5 "Still open"). Also queued: `showSum` list form,
+      inspector touch gesture.
 - [x] M17 stacking & drag feel — DONE (committed): single bottom-center handle,
       hover-scoped handles (hover-self tracking in EntityView), visible
       under-piece, real token ghosts (TokenView.svelte), token piles dissolved
