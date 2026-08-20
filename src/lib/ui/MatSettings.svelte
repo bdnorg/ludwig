@@ -44,6 +44,8 @@
   // svelte-ignore state_referenced_locally
   let showSum = $state(mat.config.showSum ?? '');
   // svelte-ignore state_referenced_locally
+  let autoReshuffle = $state(mat.config.autoReshuffle ?? '');
+  // svelte-ignore state_referenced_locally
   let supply = $state(mat.config.supply ?? 'normal');
   // positions default HIDDEN when a mat first turns private; reflect the
   // stored rule only if it already was private
@@ -111,6 +113,7 @@
           });
         m.config.buttons = btns.length > 0 ? btns : undefined;
         m.config.showSum = showSum.trim() || undefined;
+        m.config.autoReshuffle = autoReshuffle.trim() || undefined;
         m.config.supply = supply === 'infinite' ? 'infinite' : undefined;
       }
       if (changedPrivacy) {
@@ -206,6 +209,10 @@
     <label>
       Show sum of value (e.g. "value" for a chip pot)
       <input data-field="showsum" bind:value={showSum} placeholder="none" />
+    </label>
+    <label>
+      Auto-reshuffle from mat (label) — a short draw sweeps that mat in and shuffles first
+      <input data-field="autoreshuffle" bind:value={autoReshuffle} placeholder="none" />
     </label>
     <label>
       Privacy

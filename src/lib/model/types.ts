@@ -45,11 +45,18 @@ export interface CardFace {
   sub?: string; // bottom line, e.g. cost / type
   color?: string;
   image?: string;
-  /** short at-a-glance chips ("+1 Card", "$2"). When present, the table-size
-   *  face renders title + art + badges ONLY; `body` moves to the inspector's
-   *  detail view (v5 — small faces must be readable at arm's length). */
+  /** short at-a-glance chips ("+1 Card", "$2") — authored explicitly, never
+   *  extracted from text. When present, the table-size face renders title +
+   *  art + badges ONLY; `body` moves to the inspector's detail view (v5 —
+   *  small faces must be readable at arm's length). */
   badges?: string[];
+  /** author-controlled field order per size (v5 round 3): which fields the
+   *  small (table) and large (inspector) renderings show, in order. Omit a
+   *  size to keep its default layout. */
+  layout?: { small?: CardFaceField[]; large?: CardFaceField[] };
 }
+
+export type CardFaceField = 'title' | 'art' | 'badges' | 'body' | 'sub' | 'corner' | 'center';
 
 // ---- Mats (SPEC §10) --------------------------------------------------
 
@@ -191,6 +198,10 @@ export type MatEntity = Base<
     /** 'infinite' (v4 §6): pulls CLONE the top item, returns DESTROY the
      *  returned item, and the count badge renders ∞ */
     supply?: 'normal' | 'infinite';
+    /** label of a linked mat (v5 round 3): a draw that finds this mat short
+     *  sweeps that mat's items in and shuffles first, then completes. The
+     *  config IS the deck↔discard connection; a ⟳ chip renders the link. */
+    autoReshuffle?: string;
     /** an implicit stack (M17): created by dropping one item onto another's
      *  bullseye. Renders chrome-free (no label, no letter, sized to its top
      *  item) and dissolves back into a lone item when fewer than 2 remain. */

@@ -189,6 +189,7 @@ export interface MatOpts {
   groups?: string[];
   stackKinds?: MatEntity['config']['stackKinds'];
   showSum?: string;
+  autoReshuffle?: string;
   buttons?: MatEntity['config']['buttons'];
   quickActions?: string[];
   implicit?: boolean;
@@ -229,6 +230,7 @@ export function makeMat(version: Version, pos: Pos, o: MatOpts): MatEntity {
       groups: o.groups,
       stackKinds: o.stackKinds,
       showSum: o.showSum,
+      autoReshuffle: o.autoReshuffle,
       buttons: o.buttons,
       quickActions: o.quickActions,
       implicit: o.implicit,

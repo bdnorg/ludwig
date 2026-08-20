@@ -141,8 +141,7 @@ export const ACTIONS: UiAction[] = [
     key: 'd',
     hover: true,
     appliesTo: (e) => isStackish(e) && nonEmpty(e),
-    run: (e, args) =>
-      table.commit(ops.drawTo(table, e as MatEntity, table.myHand(), args?.n ?? 1)),
+    run: (e, args) => drawSmart(e as MatEntity, args?.n ?? 1),
   },
   {
     id: 'flip',
@@ -326,29 +325,65 @@ export function matCompoundItems(mat: MatEntity): Array<{ label: string; run: ()
   return out;
 }
 
-/** Sweep every item of the mat labeled `srcLabel` into `mat`, then shuffle —
- *  the discard-into-deck motion as ONE parameterized button (v5). */
-function reshuffleFrom(mat: MatEntity, srcLabel: string): void {
-  const scratch: OpCtx = {
-    state: table.snapshot(),
-    next: () => table.next(),
-    clone: (x) => structuredClone(x),
-  };
+/** Build the sweep+shuffle muts for "reshuffle <srcLabel> into <matId>",
+ *  applying them to `scratch` so callers can keep composing. */
+function reshuffleMuts(scratch: OpCtx, matId: string, srcLabel: string): Mutation[] {
   const src = Object.values(scratch.state.entities).find(
     (e): e is MatEntity => e.kind === 'mat' && e.config.label === srcLabel,
   );
-  const target = scratch.state.entities[mat.id];
-  if (!src || target?.kind !== 'mat') return;
+  const target = scratch.state.entities[matId];
+  if (!src || target?.kind !== 'mat') return [];
   const muts = ops.moveItemsInto(scratch, matItems(scratch.state, src), target);
   applyMutations(scratch.state, muts);
-  const after = scratch.state.entities[mat.id];
-  if (after?.kind === 'mat') muts.push(...ops.shuffleMat(scratch, after));
+  const after = scratch.state.entities[matId];
+  if (after?.kind === 'mat') {
+    const shuf = ops.shuffleMat(scratch, after);
+    applyMutations(scratch.state, shuf);
+    muts.push(...shuf);
+  }
+  return muts;
+}
+
+function scratchCtx(): OpCtx {
+  return { state: table.snapshot(), next: () => table.next(), clone: (x) => structuredClone(x) };
+}
+
+/** Sweep every item of the mat labeled `srcLabel` into `mat`, then shuffle —
+ *  the discard-into-deck motion as ONE parameterized button (v5). */
+function reshuffleFrom(mat: MatEntity, srcLabel: string): void {
+  const muts = reshuffleMuts(scratchCtx(), mat.id, srcLabel);
   if (muts.length > 0) {
     table.commit(muts);
     table.logMsg(
       `${table.playerName(table.me.id)} reshuffled “${srcLabel}” into “${mat.config.label}”`,
     );
   }
+}
+
+/** Draw n from a stack to MY hand, honoring the mat's autoReshuffle link
+ *  (v5 round 3): a deck too short to serve the draw sweeps its linked mat
+ *  in and shuffles first — one commit, one undo. */
+export function drawSmart(mat: MatEntity, n = 1): void {
+  const hand = table.myHand(); // ensure it exists before snapshotting
+  const scratch = scratchCtx();
+  let deck = scratch.state.entities[mat.id];
+  if (deck?.kind !== 'mat') return;
+  const muts: Mutation[] = [];
+  const link = deck.config.autoReshuffle;
+  if (link && deck.config.supply !== 'infinite' && matItems(scratch.state, deck).length < n) {
+    const swept = reshuffleMuts(scratch, mat.id, link);
+    if (swept.length > 0) {
+      muts.push(...swept);
+      table.logMsg(
+        `${table.playerName(table.me.id)} reshuffled “${link}” into “${deck.config.label}” (auto)`,
+      );
+      deck = scratch.state.entities[mat.id] as MatEntity;
+    }
+  }
+  const handNow = scratch.state.entities[hand.id];
+  if (deck.kind !== 'mat' || handNow?.kind !== 'mat') return;
+  muts.push(...ops.drawTo(scratch, deck, handNow, n));
+  if (muts.length > 0) table.commit(muts);
 }
 
 /** Run a mat button / quick-action id (v4 §5, §9): a registry action on the
@@ -368,8 +403,7 @@ export function runMatButton(actionId: string, mat: MatEntity): void {
   // draw:<n> — a button preset for "draw n to my hand" (v5); the count
   // prefix ("5 d") stays the way to pick an arbitrary n at runtime
   if (actionId.startsWith('draw:')) {
-    const n = Math.max(1, parseInt(actionId.slice('draw:'.length), 10) || 1);
-    table.commit(ops.drawTo(table, mat, table.myHand(), n));
+    drawSmart(mat, Math.max(1, parseInt(actionId.slice('draw:'.length), 10) || 1));
     return;
   }
   if (actionId === 'roll-all-dice') {

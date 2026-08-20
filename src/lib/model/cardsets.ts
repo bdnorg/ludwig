@@ -22,10 +22,13 @@ export interface CardSpec {
   color?: string; // title/accent color
   image?: string; // optional art URL (used instead of text)
   /** at-a-glance chips on the small face ("+1 Card", "$2"); body text then
-   *  only shows in the inspector (v5) */
+   *  only shows in the inspector (v5). Authored explicitly, never derived. */
   badges?: string[];
   /** named numeric values (coin, vp…) — mats can show sums (v4 §4) */
   values?: Record<string, number>;
+  /** field order per size (v5 round 3): e.g. { small: ['title','badges'],
+   *  large: ['title','art','body','sub'] }. Omit for the defaults. */
+  layout?: CardFace['layout'];
   count?: number; // copies in the deck (default 1)
 }
 
@@ -70,6 +73,7 @@ export function buildCardSet(ctx: OpCtx, spec: CardSetSpec, pos: Pos): Mutation[
         color: c.color,
         image: c.image,
         badges: c.badges,
+        layout: c.layout,
       };
       const card: CardEntity = {
         id: newId('card'),

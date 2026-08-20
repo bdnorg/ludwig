@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { CardFace } from '../model/types';
+  import type { CardFace, CardFaceField } from '../model/types';
 
   let {
     face = null,
@@ -20,6 +20,17 @@
   // badges present → the small face shows title + art + badges only; the
   // body text belongs to the inspector (v5: readable at arm's length)
   const summary = $derived(!detail && !!face?.badges?.length);
+
+  // author-controlled field order (v5 round 3): a layout list switches the
+  // face to the flow renderer with exactly those fields, in that order
+  function defaultLarge(f: CardFace): CardFaceField[] {
+    return ['title', 'art', 'badges', 'body', ...(f.title ? [] : (['center'] as const)), 'sub'];
+  }
+  const fields = $derived.by((): CardFaceField[] | null => {
+    if (!face) return null;
+    if (detail) return face.layout?.large ?? defaultLarge(face);
+    return face.layout?.small ?? null;
+  });
 </script>
 
 {#if face}
@@ -30,18 +41,25 @@
     style:color={face.color ?? '#222'}
     style:font-size="{16 * fontScale}px"
   >
-    {#if detail}
+    {#if fields}
       <div class="detail">
-        {#if face.title || face.corner}<span class="dtitle">{face.title ?? face.corner}</span>{/if}
-        {#if face.image}<img class="dart" src={face.image} alt="" draggable="false" />{/if}
-        {#if face.badges?.length}
-          <div class="dbadges">
-            {#each face.badges as b (b)}<span class="pill">{b}</span>{/each}
-          </div>
-        {/if}
-        {#if face.body}<span class="dbody">{face.body}</span>{/if}
-        {#if face.center && !face.title}<span class="dcenter">{face.center}</span>{/if}
-        {#if face.sub}<span class="dsub">{face.sub}</span>{/if}
+        {#each fields as f (f)}
+          {#if f === 'title' && (face.title || face.corner)}
+            <span class="dtitle">{face.title ?? face.corner}</span>
+          {:else if f === 'art' && face.image}
+            <img class="dart" src={face.image} alt="" draggable="false" />
+          {:else if f === 'badges' && face.badges?.length}
+            <div class="dbadges">
+              {#each face.badges as b (b)}<span class="pill">{b}</span>{/each}
+            </div>
+          {:else if f === 'body' && face.body}
+            <span class="dbody">{face.body}</span>
+          {:else if f === 'center' && face.center}
+            <span class="dcenter">{face.center}</span>
+          {:else if f === 'sub' && face.sub}
+            <span class="dsub">{face.sub}</span>
+          {/if}
+        {/each}
       </div>
     {:else if summary}
       <span class="title big">{face.title}</span>
