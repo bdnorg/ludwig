@@ -140,5 +140,105 @@ await carol.waitForSelector('[data-drop^="mat:mat_"]', { timeout: 30000 });
 const carolDeck = await carol.evaluate(() => document.querySelector('[data-drop^="mat:mat_"] .count')?.textContent);
 console.log(carolDeck === '50' ? 'PASS: late joiner carol got snapshot (deck=50)' : `FAIL: carol deck=${carolDeck}`);
 
+// ---- M21 seat kits over P2P: dana starts a Dominion table (auto-claims
+// seat 1); eve joins and must end up owning the seat-2 kit (Deck 2 +
+// Discard 2), with the claim visible on both sides.
+const ROOM2 = 'test-seat-' + Math.random().toString(36).slice(2, 8);
+const URL2 = `${BASE}#/t/${ROOM2}`;
+
+async function makeSeatPeer(name, color, pending = null) {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  page.on('console', (m) => {
+    if (m.type() === 'error') console.log(`[${name} console.error]`, m.text());
+  });
+  await page.goto(BASE);
+  await page.evaluate(
+    ([n, c, tmpl]) => {
+      localStorage.setItem(
+        'ludwig:player',
+        JSON.stringify({ id: 'p_' + n, name: n, color: c }),
+      );
+      if (tmpl) sessionStorage.setItem('ludwig:pending-template', tmpl);
+    },
+    [name, color, pending],
+  );
+  await page.goto(URL2);
+  await page.waitForSelector('.viewport');
+  return page;
+}
+
+const seatState = (p) =>
+  p.evaluate((r) => JSON.parse(localStorage.getItem(`ludwig:table:${r}`) ?? 'null'), ROOM2);
+const kitOwner = (s, label) =>
+  Object.values(s?.entities ?? {}).find((e) => e.kind === 'mat' && e.config.label === label)
+    ?.config.ownerId;
+
+const dana = await makeSeatPeer('dana', '#48b265', 'dominion');
+// creator claims seat 1 locally at table start (poll: autosave is debounced)
+let sd = null;
+for (let i = 0; i < 20 && !sd; i++) {
+  await new Promise((r) => setTimeout(r, 500));
+  const st = await seatState(dana);
+  if (st && kitOwner(st, 'Deck 1')) sd = st;
+}
+console.log(
+  sd && kitOwner(sd, 'Deck 1') === 'p_dana' && kitOwner(sd, 'Discard 1') === 'p_dana'
+    ? 'PASS: dana (creator) auto-claimed seat 1'
+    : `FAIL: dana's seat 1 claim missing (deck=${kitOwner(sd, 'Deck 1')})`,
+);
+
+// eve joins: the snapshot carries the kits; her autoSeat must claim seat 2
+const eve = await makeSeatPeer('eve', '#9b59c9');
+const seatDeadline = Date.now() + 90000;
+let se = null;
+while (Date.now() < seatDeadline) {
+  const st = await seatState(eve);
+  if (st && kitOwner(st, 'Deck 2') === 'p_eve') {
+    se = st;
+    break;
+  }
+  await new Promise((r) => setTimeout(r, 1000));
+}
+console.log(
+  se && kitOwner(se, 'Deck 2') === 'p_eve' && kitOwner(se, 'Discard 2') === 'p_eve'
+    ? 'PASS: eve (second joiner) auto-claimed seat 2 (Deck 2 + Discard 2)'
+    : `FAIL: eve never claimed seat 2 (deck2=${se ? kitOwner(se, 'Deck 2') : 'no state'})`,
+);
+console.log(
+  se && Object.values(se.log ?? {}).some((e) => e.text.includes('eve took seat 2'))
+    ? "PASS: eve's seat claim was logged"
+    : 'FAIL: no "eve took seat 2" log entry',
+);
+
+// eve's kit renders the owner-colored dot and her name on the label
+const eveDeckLabel = await eve.evaluate(() => {
+  const labels = [...document.querySelectorAll('.entity .label')];
+  const el = labels.find((l) => l.textContent.includes('Deck 2'));
+  return el ? { text: el.textContent.trim(), odot: !!el.querySelector('.odot') } : null;
+});
+console.log(
+  eveDeckLabel?.text === 'eve · Deck 2' && eveDeckLabel.odot
+    ? 'PASS: eve\'s Deck 2 label wears her name and color dot'
+    : `FAIL: eve's Deck 2 label: ${JSON.stringify(eveDeckLabel)}`,
+);
+
+// ...and the claim syncs back to dana
+const backDeadline = Date.now() + 30000;
+let danaSees = null;
+while (Date.now() < backDeadline) {
+  const st = await seatState(dana);
+  if (st && kitOwner(st, 'Deck 2') === 'p_eve') {
+    danaSees = st;
+    break;
+  }
+  await new Promise((r) => setTimeout(r, 1000));
+}
+console.log(
+  danaSees
+    ? "PASS: eve's seat-2 claim synced to dana"
+    : "FAIL: dana never saw eve's seat-2 claim",
+);
+
 await browser.close();
 console.log('DONE');

@@ -461,6 +461,46 @@ ok(
   'pinned the hand back into the tray',
 );
 
+// M21: the tray drags by its ⠿ grip — it floats where dropped (persisted
+// under ludwig:tray) and double-clicking the grip re-docks bottom-center
+const trayBB0 = await page.locator('.tray').boundingBox();
+const grabBB = await page.locator('.tray .grab').boundingBox();
+await drag(
+  { x: grabBB.x + grabBB.width / 2, y: grabBB.y + grabBB.height / 2 },
+  { x: grabBB.x + grabBB.width / 2 - 260, y: grabBB.y + grabBB.height / 2 - 320 },
+);
+await page.waitForTimeout(200);
+const trayFloat = await page.evaluate(() => {
+  const t = document.querySelector('.tray');
+  return { floating: t.classList.contains('floating'), left: t.style.left, top: t.style.top };
+});
+const savedTray = await page.evaluate(() =>
+  JSON.parse(localStorage.getItem('ludwig:tray') ?? 'null'),
+);
+const trayBB1 = await page.locator('.tray').boundingBox();
+ok(
+  trayFloat.floating && trayFloat.left !== '' && trayFloat.top !== '',
+  `grip drag floats the tray (floating=${trayFloat.floating}, left=${trayFloat.left})`,
+);
+ok(
+  Math.abs(trayBB1.x - (trayBB0.x - 260)) < 8 && Math.abs(trayBB1.y - (trayBB0.y - 320)) < 8,
+  `tray followed the grip (${Math.round(trayBB0.x)},${Math.round(trayBB0.y)} → ${Math.round(trayBB1.x)},${Math.round(trayBB1.y)})`,
+);
+ok(
+  savedTray && Math.abs(savedTray.x - trayBB1.x) < 8 && Math.abs(savedTray.y - trayBB1.y) < 8,
+  `tray position persisted under ludwig:tray (${JSON.stringify(savedTray)})`,
+);
+await page.dblclick('.tray .grab');
+await page.waitForTimeout(200);
+ok(
+  await page.evaluate(
+    () =>
+      !document.querySelector('.tray').classList.contains('floating') &&
+      localStorage.getItem('ludwig:tray') === null,
+  ),
+  'double-clicking the grip re-docked the tray and cleared the key',
+);
+
 // M11: the table root is a mat — right-click the felt for its settings
 s = await state();
 ok(!!s.entities['mat_table'], 'root table mat exists');

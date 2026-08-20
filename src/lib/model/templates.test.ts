@@ -23,6 +23,33 @@ describe('card set builder', () => {
     expect(cards.find((c) => c.config.front.title === 'B')?.config.front.body).toBe('text');
   });
 
+  it('forwards per-size layout field lists onto the face (M21)', () => {
+    const peer = new TestPeer('a');
+    peer.apply(
+      buildCardSet(
+        peer,
+        {
+          name: 'Set',
+          cards: [
+            {
+              title: 'L',
+              body: 'text',
+              layout: { small: ['title', 'badges'], large: ['title', 'body', 'sub'] },
+            },
+            { title: 'Plain' },
+          ],
+        },
+        { x: 0, y: 0, z: 0, rot: 0 },
+      ),
+    );
+    const cards = Object.values(peer.state.entities).filter((e) => e.kind === 'card');
+    expect(cards.find((c) => c.config.front.title === 'L')?.config.front.layout).toEqual({
+      small: ['title', 'badges'],
+      large: ['title', 'body', 'sub'],
+    });
+    expect(cards.find((c) => c.config.front.title === 'Plain')?.config.front.layout).toBeUndefined();
+  });
+
   it('validates specs', () => {
     expect(() => validateCardSet({})).toThrow();
     expect(() => validateCardSet({ name: 'x', cards: [] })).toThrow();

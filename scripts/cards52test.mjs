@@ -48,6 +48,26 @@ const dotColor = await page.evaluate(
 );
 ok(dotColor === 'rgb(72, 178, 101)', `roster dot wears the chosen color (${dotColor})`);
 
+// M21: change color mid-game — my roster dot opens a swatch row; picking one
+// updates the identity (ludwig:player) and the dot live
+await page.click('.roster .dot.mine');
+await page.waitForSelector('.roster .swatches', { timeout: 2000 });
+ok(true, 'clicking my roster dot opened the swatch row');
+await page.click('.roster .swatches .sw'); // first preset = #e4573d
+await page.waitForTimeout(200);
+const recolored = await page.evaluate(() =>
+  JSON.parse(localStorage.getItem('ludwig:player') ?? 'null'),
+);
+ok(recolored?.color === '#e4573d', `swatch pick saved to ludwig:player (${recolored?.color})`);
+const dotColor2 = await page.evaluate(
+  () => getComputedStyle(document.querySelector('.roster .dot.mine')).backgroundColor,
+);
+ok(dotColor2 === 'rgb(228, 87, 61)', `roster dot changed live (${dotColor2})`);
+ok(
+  await page.evaluate(() => !document.querySelector('.roster .swatches')),
+  'swatch row closed after the pick',
+);
+
 const room = await page.evaluate(() => location.hash.replace('#/t/', ''));
 const state = () => page.evaluate((r) => JSON.parse(localStorage.getItem(`ludwig:table:${r}`)), room);
 

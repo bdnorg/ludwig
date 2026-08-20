@@ -40,6 +40,33 @@ for (const n of [1, 2, 3, 4]) {
   );
 }
 
+// M21 seat kits: the creator auto-claims seat 1 — Deck 1 + Discard 1 get
+// their ownerId, the claim is logged, and the label wears the owner dot
+const myId = (await page.evaluate(() => JSON.parse(localStorage.getItem('ludwig:player')))).id;
+const deck1Ent = decks.find((d) => d.config.label === 'Deck 1');
+const discard1Ent = decks.find((d) => d.config.label === 'Discard 1');
+const deck2Ent = decks.find((d) => d.config.label === 'Deck 2');
+ok(
+  deck1Ent.config.ownerId === myId && discard1Ent.config.ownerId === myId,
+  'creator auto-claimed seat 1 (owns Deck 1 + Discard 1)',
+);
+ok(
+  !deck2Ent.config.ownerId,
+  'seat 2 kit is still unowned',
+);
+ok(
+  Object.values(s.log ?? {}).some((e) => e.text.includes('Dom took seat 1')),
+  'seat claim was logged',
+);
+const deck1Label = await page.evaluate((id) => {
+  const el = document.querySelector(`[data-entity-id="${id}"] .label`);
+  return el ? { text: el.textContent.trim(), odot: !!el.querySelector('.odot') } : null;
+}, deck1Ent.id);
+ok(
+  deck1Label?.text === 'Dom · Deck 1' && deck1Label.odot,
+  `owned mat label carries name + color dot ("${deck1Label?.text}", odot=${deck1Label?.odot})`,
+);
+
 // supply piles show their top card's title (face up)
 const villageVisible = await page.evaluate(() =>
   [...document.querySelectorAll('.face .title')].some((t) => t.textContent === 'Village'),
@@ -57,13 +84,16 @@ await page.waitForSelector('.inspector.pinned', { timeout: 2000 });
 const chrome = await page.evaluate(() => ({
   bar: !!document.querySelector('.inspector.pinned .bar'),
   grip: !!document.querySelector('.inspector.pinned .grip'),
+  space: document.querySelector('.inspector.pinned .bar .space')?.textContent.trim(),
 }));
 ok(chrome.bar && chrome.grip, 'pinned inspector shows the drag bar and resize grip');
+ok(chrome.space === '📌 screen', `pinned bar offers the park toggle ("${chrome.space}")`);
 
-// drag the bar left+down: the panel follows the pointer delta
+// drag the bar left+down: the panel follows the pointer delta (grab near the
+// bar's left edge — the 📌 button sits mid-bar and swallows pointerdown, M21)
 const panelBB = await page.locator('.inspector').boundingBox();
 const barBB = await page.locator('.inspector .bar').boundingBox();
-const barC = { x: barBB.x + barBB.width / 2, y: barBB.y + barBB.height / 2 };
+const barC = { x: barBB.x + 10, y: barBB.y + barBB.height / 2 };
 await page.mouse.move(barC.x, barC.y);
 await page.mouse.down();
 await page.mouse.move(barC.x - 400, barC.y + 150, { steps: 8 });
@@ -136,7 +166,8 @@ await page.keyboard.press('5');
 await page.keyboard.press('d');
 await settle();
 s = await state();
-const hand = Object.values(s.entities).find((e) => e.kind === 'mat' && e.config.ownerId);
+// (seat kits also carry ownerId since M21 — find the hand by its id)
+const hand = Object.values(s.entities).find((e) => e.kind === 'mat' && e.id.startsWith('hand_'));
 const inHand = Object.values(s.entities).filter((e) => e.kind === 'card' && e.parent === hand.id);
 ok(inHand.length === 5, `count prefix 5 d drew opening hand of 5 (got ${inHand.length})`);
 const titles = inHand.map((c) => c.config.front.title);
@@ -201,6 +232,154 @@ const handNow = Object.values(s.entities).filter(
 ok(
   handNow === 10 && (await deck1Left()) === 0,
   `Draw 5 button drew 5 more to my hand (hand ${handNow}, deck ${await deck1Left()})`,
+);
+
+// ---- M21: autoReshuffle — a short draw sweeps the linked discard in and
+// shuffles first, all as ONE commit. Use the untouched seat-2 kit: put 5 of
+// Deck 2's 10 cards on Discard 2, then draw 8 with only 5 left in the deck.
+const deck2 = decks.find((d) => d.config.label === 'Deck 2');
+const discard2 = decks.find((d) => d.config.label === 'Discard 2');
+ok(
+  await page.evaluate(
+    (id) => document.querySelector(`[data-entity-id="${id}"] .linkchip`)?.textContent === '⟳',
+    deck2.id,
+  ),
+  'Deck 2 renders the ⟳ autoReshuffle link chip',
+);
+
+// hovering the chip outlines the linked mat (class "hinted")
+await page.hover(`[data-entity-id="${deck2.id}"] .linkchip`);
+await page.waitForTimeout(150);
+ok(
+  await page.evaluate(
+    (id) => document.querySelector(`[data-entity-id="${id}"]`)?.classList.contains('hinted'),
+    discard2.id,
+  ),
+  'hovering the ⟳ chip outlines the linked Discard 2',
+);
+await page.mouse.move(400, 880); // off the chip
+await page.waitForTimeout(150);
+
+// move 5 cards Deck 2 → Discard 2 by bullseye drops (deterministic setup)
+const dc2bb = await page.locator(`[data-entity-id="${discard2.id}"]`).boundingBox();
+for (let i = 0; i < 5; i++) {
+  await page.keyboard.down('Shift');
+  await page.mouse.move(deck2.pos.x + 36, deck2.pos.y + 50 + TOOLBAR);
+  await page.mouse.down();
+  await page.mouse.move(dc2bb.x + dc2bb.width / 2, dc2bb.y + dc2bb.height / 2, { steps: 5 });
+  await page.mouse.move(dc2bb.x + dc2bb.width, dc2bb.y, { steps: 4 });
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+}
+await settle();
+s = await state();
+ok(
+  s.entities[deck2.id].state.order.length === 5 &&
+    s.entities[discard2.id].state.order.length === 5,
+  `staged the link: Deck 2 has 5, Discard 2 has 5 (${s.entities[deck2.id].state.order.length}/${s.entities[discard2.id].state.order.length})`,
+);
+
+// draw 8 from a 5-card deck: the discard sweeps in, shuffles, and the draw
+// completes — hand 10 → 18, both mats emptied into it
+const handBefore = Object.values(s.entities).filter((e) => e.parent === hand.id).length;
+await page.mouse.move(deck2.pos.x + 36, deck2.pos.y + 50 + TOOLBAR);
+await page.keyboard.press('8');
+await page.keyboard.press('d');
+await settle();
+s = await state();
+const handAfterAuto = Object.values(s.entities).filter((e) => e.parent === hand.id).length;
+ok(
+  handAfterAuto === handBefore + 8 &&
+    s.entities[deck2.id].state.order.length === 2 &&
+    s.entities[discard2.id].state.order.length === 0,
+  `8 d auto-reshuffled and drew (hand ${handBefore}→${handAfterAuto}, deck ${s.entities[deck2.id].state.order.length}, discard ${s.entities[discard2.id].state.order.length})`,
+);
+ok(
+  Object.values(s.log ?? {}).some((e) => e.text.includes('(auto)') && e.text.includes('Discard 2')),
+  'auto-reshuffle hit the log',
+);
+
+// ONE commit: a single undo restores deck, discard, and hand together
+await page.click('.toolbar button:has-text("undo")');
+await settle();
+s = await state();
+ok(
+  s.entities[deck2.id].state.order.length === 5 &&
+    s.entities[discard2.id].state.order.length === 5 &&
+    Object.values(s.entities).filter((e) => e.parent === hand.id).length === handBefore,
+  `one undo reversed sweep+shuffle+draw together (deck ${s.entities[deck2.id].state.order.length}, discard ${s.entities[discard2.id].state.order.length})`,
+);
+
+// ---- M21: inspector felt-park toggle — pinned panel parks on screen (stays
+// put through pans) or on the felt (tracks the table). LAST: it pans the view.
+const village2 = decks.find((d) => d.config.label === 'Village');
+await page.mouse.move(village2.pos.x + 36, village2.pos.y + 50 + TOOLBAR);
+await page.waitForSelector('.inspector', { timeout: 3000 });
+await page.keyboard.press('v');
+await page.waitForSelector('.inspector.pinned', { timeout: 2000 });
+
+/** find an empty felt point (no entity/chrome under it) to start a pan */
+const emptyFeltPoint = () =>
+  page.evaluate(() => {
+    const clear = (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      return (
+        el &&
+        !el.closest('.entity') &&
+        !el.closest('.tray') &&
+        !el.closest('.inspector') &&
+        !el.closest('.toolbar') &&
+        !el.closest('.roster') &&
+        !el.closest('.logpanel') &&
+        !el.closest('.quickbar')
+      );
+    };
+    for (const [x, y] of [[60, 880], [200, 880], [1440, 880], [60, 500], [740, 470], [1440, 300]])
+      if (clear(x, y)) return { x, y };
+    return null;
+  });
+
+async function pan(dx, dy) {
+  const p = await emptyFeltPoint();
+  await page.keyboard.down('Shift');
+  await page.mouse.move(p.x, p.y);
+  await page.mouse.down();
+  await page.mouse.move(p.x + dx, p.y + dy, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+  await page.waitForTimeout(200);
+}
+
+// park on the felt: the toggle flips its label and the panel now pans along
+await page.click('.inspector .bar .space');
+await page.waitForTimeout(150);
+const spaceLabel = await page.evaluate(() =>
+  document.querySelector('.inspector .bar .space')?.textContent.trim(),
+);
+ok(spaceLabel === '📌 felt', `park toggle switched to the felt ("${spaceLabel}")`);
+const feltBB = await page.locator('.inspector').boundingBox();
+await pan(120, 70);
+const feltBB2 = await page.locator('.inspector').boundingBox();
+ok(
+  Math.abs(feltBB2.x - (feltBB.x + 120)) < 10 && Math.abs(feltBB2.y - (feltBB.y + 70)) < 10,
+  `felt-parked panel moved with the pan (${Math.round(feltBB.x)},${Math.round(feltBB.y)} → ${Math.round(feltBB2.x)},${Math.round(feltBB2.y)})`,
+);
+
+// park back on screen: the panel stays put through the next pan
+await page.click('.inspector .bar .space');
+await page.waitForTimeout(150);
+ok(
+  (await page.evaluate(() =>
+    document.querySelector('.inspector .bar .space')?.textContent.trim(),
+  )) === '📌 screen',
+  'park toggle switched back to the screen',
+);
+const screenBB = await page.locator('.inspector').boundingBox();
+await pan(80, 50);
+const screenBB2 = await page.locator('.inspector').boundingBox();
+ok(
+  Math.abs(screenBB2.x - screenBB.x) < 3 && Math.abs(screenBB2.y - screenBB.y) < 3,
+  `screen-parked panel ignored the pan (${Math.round(screenBB.x)},${Math.round(screenBB.y)} → ${Math.round(screenBB2.x)},${Math.round(screenBB2.y)})`,
 );
 
 await browser.close();
