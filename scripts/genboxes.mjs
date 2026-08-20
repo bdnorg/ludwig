@@ -133,10 +133,6 @@ const emblemSvg = (color, glyph) =>
   `<text x="48" y="30" font-size="26" text-anchor="middle">${glyph}</text>` +
   `</svg>\n`;
 
-// at-a-glance chips for the small face (mirror of dominion.ts, v5)
-const dBadges = (body) =>
-  [...body.matchAll(/\+\d+ (?:Cards?|Actions?|Buys?)|\+\$\d+/g)].map((m) => m[0]);
-
 const dMoney = (name, worth, cost, count) => ({
   title: name, sub: `$${cost} · Treasure`, color: D_TREASURE, count,
   image: `asset:${dArtId(name)}`,
@@ -149,23 +145,25 @@ const dVp = (name, points, cost, count, color = D_VICTORY) => ({
   badges: [points],
   values: { vp: Number(points.replace('−', '-').replace(/ VP$/, '')) },
 });
-const dAction = (name, body, cost, type = 'Action', badges) => ({
+// badges are ALWAYS hand-authored (v5 round 3) — chips are content, never
+// extracted from the rules text (mirror of dominion.ts)
+const dAction = (name, body, cost, badges, type = 'Action') => ({
   title: name, body, sub: `$${cost} · ${type}`, color: D_ACTION, count: 10,
   image: `asset:${dArtId(name)}`,
-  badges: badges ?? dBadges(body),
+  badges,
 });
 
 const KINGDOM = [
-  dAction('Cellar', '+1 Action\nDiscard any number of cards, then draw that many.', 2),
-  dAction('Moat', '+2 Cards\nWhen another player plays an Attack, you may reveal this to be unaffected.', 2, 'Action–Reaction'),
-  dAction('Merchant', '+1 Card, +1 Action\nThe first time you play a Silver this turn, +$1.', 3),
-  dAction('Village', '+1 Card, +2 Actions', 3),
-  dAction('Workshop', 'Gain a card costing up to $4.', 3, 'Action', ['Gain ≤ $4']),
-  dAction('Militia', '+$2\nEach other player discards down to 3 cards in hand.', 4, 'Action–Attack'),
-  dAction('Remodel', 'Trash a card from your hand. Gain a card costing up to $2 more than it.', 4, 'Action', ['Trash → +$2']),
-  dAction('Smithy', '+3 Cards', 4),
-  dAction('Market', '+1 Card, +1 Action, +1 Buy, +$1', 5),
-  dAction('Mine', 'Trash a Treasure from your hand. Gain a Treasure to your hand costing up to $3 more than it.', 5, 'Action', ['Treasure → +$3']),
+  dAction('Cellar', '+1 Action\nDiscard any number of cards, then draw that many.', 2, ['+1 Action']),
+  dAction('Moat', '+2 Cards\nWhen another player plays an Attack, you may reveal this to be unaffected.', 2, ['+2 Cards'], 'Action–Reaction'),
+  dAction('Merchant', '+1 Card, +1 Action\nThe first time you play a Silver this turn, +$1.', 3, ['+1 Card', '+1 Action']),
+  dAction('Village', '+1 Card, +2 Actions', 3, ['+1 Card', '+2 Actions']),
+  dAction('Workshop', 'Gain a card costing up to $4.', 3, ['Gain ≤ $4']),
+  dAction('Militia', '+$2\nEach other player discards down to 3 cards in hand.', 4, ['+$2'], 'Action–Attack'),
+  dAction('Remodel', 'Trash a card from your hand. Gain a card costing up to $2 more than it.', 4, ['Trash → +$2']),
+  dAction('Smithy', '+3 Cards', 4, ['+3 Cards']),
+  dAction('Market', '+1 Card, +1 Action, +1 Buy, +$1', 5, ['+1 Card', '+1 Action', '+1 Buy', '+$1']),
+  dAction('Mine', 'Trash a Treasure from your hand. Gain a Treasure to your hand costing up to $3 more than it.', 5, ['Treasure → +$3']),
 ];
 
 const D_GAP_X = CARD_W + 28;
@@ -194,7 +192,10 @@ const dominionLayout = [
   ...[0, 1, 2, 3].map((p) => ({
     type: 'mat',
     at: dAt(p * 1.6 + 1.78, 4.3),
-    opts: { label: `Discard ${p + 1}`, placement: { type: 'stack' }, faceDefault: 'up', visibility: { faces: 'public' } },
+    opts: {
+      label: `Discard ${p + 1}`, placement: { type: 'stack' }, faceDefault: 'up',
+      visibility: { faces: 'public' }, groups: [`seat ${p + 1}`],
+    },
   })),
   ...[0, 1, 2, 3].map((p) => ({
     type: 'cardset',
@@ -202,7 +203,11 @@ const dominionLayout = [
     spec: {
       name: `Deck ${p + 1}`,
       facePolicy: 'down',
-      mat: { buttons: [{ label: '⟳ reshuffle', action: `reshuffle:Discard ${p + 1}` }, { action: 'draw:5' }] },
+      mat: {
+        groups: [`seat ${p + 1}`],
+        autoReshuffle: `Discard ${p + 1}`,
+        buttons: [{ label: '⟳ reshuffle', action: `reshuffle:Discard ${p + 1}` }, { action: 'draw:5' }],
+      },
       cards: [dMoney('Copper', '$1', 0, 7), dVp('Estate', '1 VP', 2, 3)],
     },
   })),
@@ -228,7 +233,7 @@ const dominionLayout = [
     type: 'note',
     at: dAt(8.2, 0),
     text:
-      'SETUP: each player takes a Deck (7 Copper, 3 Estate). Hover it, type 5 then d: opening hand.\n\nPlay cards to the play area — the Σ badge totals your treasure. Buy: ⇧-drag off a supply pile into your Discard. Deck empty? Its ⟳ button reshuffles your Discard into it.\n\nHover any card to read it (v pins). Game ends when Provinces (or any 3 piles) run out.',
+      'You are seated automatically: the Deck/Discard pair carrying your color dot is yours. Draw 5 (its button, or type 5 then d) for your opening hand.\n\nPlay cards to the play area — the Σ badge totals your treasure. Buy: ⇧-drag off a supply pile into your Discard. Your Deck auto-reshuffles your Discard back in when a draw runs short (the ⟳ chip marks the link).\n\nHover any card to read it (v pins). Game ends when Provinces (or any 3 piles) run out.',
   },
 ];
 

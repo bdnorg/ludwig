@@ -44,17 +44,24 @@ deck of text cards — enough for Dominion-style games without any art.
       "color": "#4a4f58",             // title/accent color
       "image": null,                  // art URL: with title/body it renders as
                                       // an art strip; alone it fills the face
-      "badges": ["+1 Card", "+2 Actions"], // optional at-a-glance chips: the
-                                      // small face then shows title + art +
-                                      // badges only, and `body` moves to the
-                                      // hover inspector (v5)
+      "badges": ["+1 Card", "+2 Actions"], // optional at-a-glance chips,
+                                      // authored explicitly (never derived
+                                      // from text): the small face then shows
+                                      // title + art + badges only, and `body`
+                                      // moves to the hover inspector (v5)
       "values": { "coin": 2 },        // optional named numbers; a mat with
                                       // showSum shows their total (v4 §4)
+      "layout": {                     // optional field order per size —
+        "small": ["title", "badges"], // omit a size for its default
+        "large": ["title", "art", "body", "sub"]
+      },
       "count": 10                     // copies (default 1)
     }
   ],
   "mat": {                            // optional config for the deck mat
-    "buttons": [{ "action": "reshuffle:My Discard" }]
+    "autoReshuffle": "My Discard",    // short draws sweep that mat in + shuffle
+    "buttons": [{ "action": "reshuffle:My Discard" }, { "action": "draw:5" }],
+    "groups": ["seat 1"]              // seat kits: auto-claimed on join
   }
 }
 ```

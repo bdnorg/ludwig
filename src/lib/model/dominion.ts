@@ -16,11 +16,6 @@ const TREASURE = '#a5741a';
 const VICTORY = '#2e7d46';
 const CURSE = '#7d3fa0';
 
-// at-a-glance chips for the small face: "+N Cards/Actions/Buys" and "+$N"
-// pulled out of the rules text (the full text lives in the inspector, v5)
-const badgesFor = (body: string): string[] =>
-  [...body.matchAll(/\+\d+ (?:Cards?|Actions?|Buys?)|\+\$\d+/g)].map((m) => m[0]);
-
 const money = (name: string, worth: string, cost: number, count: number): CardSpec => ({
   title: name,
   sub: `$${cost} · Treasure`,
@@ -37,33 +32,34 @@ const vp = (name: string, points: string, cost: number, count: number, color = V
   badges: [points],
   values: { vp: Number(points.replace('−', '-').replace(/ VP$/, '')) },
 });
+// badges are ALWAYS hand-authored (v5 round 3 decision) — the at-a-glance
+// chips are content, never something extracted from the rules text
 const action = (
   name: string,
   body: string,
   cost: number,
+  badges: string[],
   type = 'Action',
-  badges?: string[],
 ): CardSpec => ({
   title: name,
   body,
   sub: `$${cost} · ${type}`,
   color: ACTION,
   count: 10,
-  // hand-authored summary chips for cards whose text has no "+N" to pull
-  badges: badges ?? badgesFor(body),
+  badges,
 });
 
 const KINGDOM: CardSpec[] = [
-  action('Cellar', '+1 Action\nDiscard any number of cards, then draw that many.', 2),
-  action('Moat', '+2 Cards\nWhen another player plays an Attack, you may reveal this to be unaffected.', 2, 'Action–Reaction'),
-  action('Merchant', '+1 Card, +1 Action\nThe first time you play a Silver this turn, +$1.', 3),
-  action('Village', '+1 Card, +2 Actions', 3),
-  action('Workshop', 'Gain a card costing up to $4.', 3, 'Action', ['Gain ≤ $4']),
-  action('Militia', '+$2\nEach other player discards down to 3 cards in hand.', 4, 'Action–Attack'),
-  action('Remodel', 'Trash a card from your hand. Gain a card costing up to $2 more than it.', 4, 'Action', ['Trash → +$2']),
-  action('Smithy', '+3 Cards', 4),
-  action('Market', '+1 Card, +1 Action, +1 Buy, +$1', 5),
-  action('Mine', 'Trash a Treasure from your hand. Gain a Treasure to your hand costing up to $3 more than it.', 5, 'Action', ['Treasure → +$3']),
+  action('Cellar', '+1 Action\nDiscard any number of cards, then draw that many.', 2, ['+1 Action']),
+  action('Moat', '+2 Cards\nWhen another player plays an Attack, you may reveal this to be unaffected.', 2, ['+2 Cards'], 'Action–Reaction'),
+  action('Merchant', '+1 Card, +1 Action\nThe first time you play a Silver this turn, +$1.', 3, ['+1 Card', '+1 Action']),
+  action('Village', '+1 Card, +2 Actions', 3, ['+1 Card', '+2 Actions']),
+  action('Workshop', 'Gain a card costing up to $4.', 3, ['Gain ≤ $4']),
+  action('Militia', '+$2\nEach other player discards down to 3 cards in hand.', 4, ['+$2'], 'Action–Attack'),
+  action('Remodel', 'Trash a card from your hand. Gain a card costing up to $2 more than it.', 4, ['Trash → +$2']),
+  action('Smithy', '+3 Cards', 4, ['+3 Cards']),
+  action('Market', '+1 Card, +1 Action, +1 Buy, +$1', 5, ['+1 Card', '+1 Action', '+1 Buy', '+$1']),
+  action('Mine', 'Trash a Treasure from your hand. Gain a Treasure to your hand costing up to $3 more than it.', 5, ['Treasure → +$3']),
 ];
 
 export function dominionTable(ctx: OpCtx, origin: Pos): Mutation[] {
@@ -103,11 +99,13 @@ export function dominionTable(ctx: OpCtx, origin: Pos): Mutation[] {
   // kingdom: two rows of five, cheap to expensive
   KINGDOM.forEach((spec, i) => pile(spec, at(3 + (i % 5), Math.floor(i / 5)), 10));
 
-  // per-player deck + discard pairs, below the play-area zone (v5): the
-  // deck's ⟳ button sweeps its discard back in and shuffles
+  // per-player SEAT KITS (v5 round 3): a Deck + Discard pair per seat,
+  // auto-claimed on join (groups 'seat N'). The deck auto-reshuffles its
+  // discard in when a draw comes up short; buttons cover manual timing.
   for (let p = 0; p < 4; p++) {
     const discard = makeMat(ctx.next(), at(p * 1.6 + 1.78, 4.3), {
       ...matPresets.pile(`Discard ${p + 1}`),
+      groups: [`seat ${p + 1}`],
     });
     muts.push({ t: 'put', entity: discard });
     muts.push(
@@ -117,6 +115,8 @@ export function dominionTable(ctx: OpCtx, origin: Pos): Mutation[] {
           name: `Deck ${p + 1}`,
           facePolicy: 'down',
           mat: {
+            groups: [`seat ${p + 1}`],
+            autoReshuffle: `Discard ${p + 1}`,
             buttons: [
               { label: '⟳ reshuffle', action: `reshuffle:Discard ${p + 1}` },
               { action: 'draw:5' },
@@ -148,7 +148,7 @@ export function dominionTable(ctx: OpCtx, origin: Pos): Mutation[] {
     config: { color: '#e7d980' },
     state: {
       text:
-        'SETUP: each player takes a Deck (7 Copper, 3 Estate). Hover it, type 5 then d: opening hand.\n\nPlay cards to the play area — the Σ badge totals your treasure. Buy: ⇧-drag off a supply pile into your Discard. Deck empty? Its ⟳ button reshuffles your Discard into it.\n\nHover any card to read it (v pins). Game ends when Provinces (or any 3 piles) run out.',
+        'You are seated automatically: the Deck/Discard pair carrying your color dot is yours. Draw 5 (its button, or type 5 then d) for your opening hand.\n\nPlay cards to the play area — the Σ badge totals your treasure. Buy: ⇧-drag off a supply pile into your Discard. Your Deck auto-reshuffles your Discard back in when a draw runs short (the ⟳ chip marks the link).\n\nHover any card to read it (v pins). Game ends when Provinces (or any 3 piles) run out.',
     },
   };
   muts.push({ t: 'put', entity: zone }, { t: 'put', entity: note });

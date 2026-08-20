@@ -282,8 +282,7 @@
             "image": "asset:merchant",
             "badges": [
               "+1 Card",
-              "+1 Action",
-              "+$1"
+              "+1 Action"
             ]
           }
         ]
@@ -482,7 +481,10 @@
         "faceDefault": "up",
         "visibility": {
           "faces": "public"
-        }
+        },
+        "groups": [
+          "seat 1"
+        ]
       }
     },
     {
@@ -499,7 +501,10 @@
         "faceDefault": "up",
         "visibility": {
           "faces": "public"
-        }
+        },
+        "groups": [
+          "seat 2"
+        ]
       }
     },
     {
@@ -516,7 +521,10 @@
         "faceDefault": "up",
         "visibility": {
           "faces": "public"
-        }
+        },
+        "groups": [
+          "seat 3"
+        ]
       }
     },
     {
@@ -533,7 +541,10 @@
         "faceDefault": "up",
         "visibility": {
           "faces": "public"
-        }
+        },
+        "groups": [
+          "seat 4"
+        ]
       }
     },
     {
@@ -546,6 +557,10 @@
         "name": "Deck 1",
         "facePolicy": "down",
         "mat": {
+          "groups": [
+            "seat 1"
+          ],
+          "autoReshuffle": "Discard 1",
           "buttons": [
             {
               "label": "⟳ reshuffle",
@@ -596,6 +611,10 @@
         "name": "Deck 2",
         "facePolicy": "down",
         "mat": {
+          "groups": [
+            "seat 2"
+          ],
+          "autoReshuffle": "Discard 2",
           "buttons": [
             {
               "label": "⟳ reshuffle",
@@ -646,6 +665,10 @@
         "name": "Deck 3",
         "facePolicy": "down",
         "mat": {
+          "groups": [
+            "seat 3"
+          ],
+          "autoReshuffle": "Discard 3",
           "buttons": [
             {
               "label": "⟳ reshuffle",
@@ -696,6 +719,10 @@
         "name": "Deck 4",
         "facePolicy": "down",
         "mat": {
+          "groups": [
+            "seat 4"
+          ],
+          "autoReshuffle": "Discard 4",
           "buttons": [
             {
               "label": "⟳ reshuffle",
@@ -784,7 +811,7 @@
         820,
         0
       ],
-      "text": "SETUP: each player takes a Deck (7 Copper, 3 Estate). Hover it, type 5 then d: opening hand.\n\nPlay cards to the play area — the Σ badge totals your treasure. Buy: ⇧-drag off a supply pile into your Discard. Deck empty? Its ⟳ button reshuffles your Discard into it.\n\nHover any card to read it (v pins). Game ends when Provinces (or any 3 piles) run out."
+      "text": "You are seated automatically: the Deck/Discard pair carrying your color dot is yours. Draw 5 (its button, or type 5 then d) for your opening hand.\n\nPlay cards to the play area — the Σ badge totals your treasure. Buy: ⇧-drag off a supply pile into your Discard. Your Deck auto-reshuffles your Discard back in when a draw runs short (the ⟳ chip marks the link).\n\nHover any card to read it (v pins). Game ends when Provinces (or any 3 piles) run out."
     }
   ]
 }
