@@ -22,6 +22,8 @@ deploy or test workflow changes — it replaces per-prompt instructions.
   Pages deploys https://bdnorg.github.io/ludwig/ on every push to `main`, so a
   push is a deploy. (The private `ludwig-F` mirror was archived 2026-09-15.)
 - Push after each milestone: `git push origin main`.
+- The user tests locally on **staff** (`~/ldev/ludwig`), where a dev server
+  on port 5173 is usually left running; http://localhost:5173/ there.
 - Watch the Pages deploy: `gh run list --repo bdnorg/ludwig` (poll until complete).
 
 ## Verification (run all before calling a milestone done)
