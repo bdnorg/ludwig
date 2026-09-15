@@ -68,9 +68,8 @@ landed milestones get one line (details live in PROPOSAL.md + git log).
 
 - [ ] **Deploy the last three milestones** (mechanical, do first): the public
       mirror is 18 commits behind — M19–M21 never reached
-      https://bdnorg.github.io/ludwig/. This checkout has no `public` remote
-      configured (`git remote add public https://github.com/bdnorg/ludwig.git`),
-      then push + live smoke test per the wrap-up checklist.
+      https://bdnorg.github.io/ludwig/. Push `public` from staff, then live
+      smoke test per the wrap-up checklist.
 - [ ] **M22 placeable mat buttons** (design; approved — PROPOSAL v5 "Still
       open"): design the placement model first (anchor points vs free x/y),
       then drag UX and gamebox syntax. Queued alongside: `showSum` list form
