@@ -18,10 +18,10 @@ deploy or test workflow changes — it replaces per-prompt instructions.
 
 ## Remotes & deploy
 
-- `origin` = https://github.com/bdnorg/ludwig-F.git — **private mirror**.
-- `public` = https://github.com/bdnorg/ludwig.git — GitHub Pages deploys
-  https://bdnorg.github.io/ludwig/ on push to `main`.
-- **Push BOTH remotes after each milestone**: `git push origin main && git push public main`.
+- `origin` = https://github.com/bdnorg/ludwig.git — the only remote. GitHub
+  Pages deploys https://bdnorg.github.io/ludwig/ on every push to `main`, so a
+  push is a deploy. (The private `ludwig-F` mirror was archived 2026-09-15.)
+- Push after each milestone: `git push origin main`.
 - Watch the Pages deploy: `gh run list --repo bdnorg/ludwig` (poll until complete).
 
 ## Verification (run all before calling a milestone done)
@@ -66,10 +66,6 @@ Open work, ranked by impact. Tag says who can do it: **design** = prefer
 Fable/top model; **mechanical** = safe for Sonnet/Opus. Update as work lands;
 landed milestones get one line (details live in PROPOSAL.md + git log).
 
-- [ ] **Deploy the last three milestones** (mechanical, do first): the public
-      mirror is 18 commits behind — M19–M21 never reached
-      https://bdnorg.github.io/ludwig/. Push `public` from staff, then live
-      smoke test per the wrap-up checklist.
 - [ ] **M22 placeable mat buttons** (design; approved — PROPOSAL v5 "Still
       open"): design the placement model first (anchor points vs free x/y),
       then drag UX and gamebox syntax. Queued alongside: `showSum` list form
@@ -145,6 +141,6 @@ label; token piles use `{ type: 'pile' }`; assets go in the manifest's
    workflow changed.
 3. Commit per milestone, message `M<N>: <summary>`, ending with:
    `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`
-4. Push both remotes.
+4. Push `origin main` (this deploys).
 5. After Pages deploys, live smoke test:
    `LUDWIG_URL=https://bdnorg.github.io/ludwig/ node scripts/p2ptest.mjs`
